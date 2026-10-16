@@ -13,13 +13,12 @@
       "emailPassword": true,
       "googleSignIn": {
         "oAuthBrandDisplayName": "DosPrep",
-        "supportEmail": "suryamandalapu@gmail.com"
+        "supportEmail": "suryamandalapu@gmail.com",
+        "authorizedRedirectUris": [
+          "https://dosprep-study-a7f31.firebaseapp.com/__/auth/handler",
+          "https://suryamandalapu-boop.github.io"
+        ]
       }
-    },
-    "authorizedDomains": [
-      "dosprep-study-a7f31.firebaseapp.com",
-      "dosprep-study-a7f31.web.app",
-      "suryamandalapu-boop.github.io"
-    ]
+    }
   }
 }

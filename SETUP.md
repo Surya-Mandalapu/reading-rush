@@ -1,6 +1,6 @@
 # Activate DosPrep accounts and analytics
 
-The site uses Firebase project **dosprep-study-a7f31** (DosPrep) and Web app **1:772349583234:web:18813d737ab9b9a1f8399b**. Google and Email/Password authentication have been deployed, including the GitHub Pages authorized domain. Real-backend email signup, login, and sign-out passed tests; the temporary QA account was deleted.
+The site uses Firebase project **dosprep-study-a7f31** (DosPrep) and Web app **1:772349583234:web:18813d737ab9b9a1f8399b**. Google and Email/Password authentication have been deployed, including the GitHub Pages authorized domain. Real-backend email signup, login, and sign-out passed tests; the temporary QA account was deleted. The live Google popup reaches Google Accounts, and its Firebase project config confirms that suryamandalapu-boop.github.io is authorized.
 
 **Analytics remains pending:** enable Google Analytics in the [project Integrations settings](https://console.firebase.google.com/project/dosprep-study-a7f31/settings/integrations). After linking, retrieve the web app SDK config again and add its `measurementId` to `app/site-config.js`. No tracking ID is invented or active before that step.
 
@@ -10,7 +10,7 @@ The project and web app are already created. If the operator login expires, run 
 
 1. Register a **Web app** in the project and obtain its public `firebaseConfig` object (apiKey, authDomain, projectId, appId, and related public fields). Do not share service-account private keys or OAuth tokens.
 2. In **Authentication → Sign-in method**, enable **Email/Password** and **Google**. Choose the project's support email when enabling Google. Set a password policy of at least 8 characters, and enable email enumeration protection where supported.
-3. In **Authentication → Settings → Authorized domains**, add `suryamandalapu-boop.github.io`. Add `localhost` and `127.0.0.1` only if local testing is needed. Keep the Firebase-provided auth domain; Google sign-in uses a popup on GitHub Pages.
+3. In **Authentication → Settings → Authorized domains**, verify `suryamandalapu-boop.github.io`. Add `localhost` and `127.0.0.1` only if local testing is needed. Keep the Firebase-provided auth domain; Google sign-in uses a popup on GitHub Pages. With CLI 15.34, use `auth.providers.googleSignIn.authorizedRedirectUris` in `firebase.json` (already configured here); the older top-level `auth.authorizedDomains` field is ignored. Deploying the redirect URIs provisions the corresponding origin allowlist.
 4. Create or link a Google Analytics 4 property and Web data stream for `https://suryamandalapu-boop.github.io/reading-rush/`. Record its `G-…` measurement ID. A Firebase project can be linked to Analytics, but a real GA4 Web data stream is still required. Configure enhanced measurement carefully so it does not collect form inputs or URL query values. The app itself sends sanitized page paths and a small allowlist of event parameters.
 5. Save the public Firebase web config as JSON in a local temporary file, then run:
 
