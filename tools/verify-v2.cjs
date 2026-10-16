@@ -1,0 +1,30 @@
+let playwright;try{playwright=require('playwright');}catch{playwright=require('./browser-check/node_modules/playwright');}
+const {chromium}=playwright;
+const assert=require('node:assert/strict');
+(async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||undefined,headless:true});
+ const p=await browser.newPage({viewport:{width:1380,height:1000}}),errors=[];p.on('pageerror',e=>errors.push(e.message));
+ await p.goto(process.env.READING_RUSH_URL||'http://127.0.0.1:8766');
+ const counts=await p.evaluate(()=>({rw:BANK.filter(q=>q.subject==='Reading and Writing').length,math:BANK.filter(q=>q.subject==='Math').length,missing:BANK.filter(q=>!window.SKILL_VIDEOS[q.skill]).map(q=>q.skill),numeric:BANK.filter(q=>q.type==='numeric').length}));
+ assert.equal(counts.rw,609);assert.equal(counts.math,610);assert.deepEqual(counts.missing,[]);assert.ok(counts.numeric>0);console.log('Library:',counts);
+ await p.click('[data-action=start]');await p.waitForFunction(()=>session.questionStarted!==null);
+ await p.evaluate(()=>{const words=[...document.querySelectorAll('.word')];const range=document.createRange();range.setStart(words[0].firstChild,0);range.setEnd(words[3].firstChild,words[3].firstChild.length);const sel=getSelection();sel.removeAllRanges();sel.addRange(range);});
+ await p.click('[data-action=highlight]');assert.ok(await p.locator('.highlighted').count()>=4);
+ const firstId=await p.evaluate(()=>session.qs[0].id);
+ const wrong=await p.evaluate(()=>session.qs[0].correct==='A'?'B':'A');await p.click(`[data-choice=${wrong}]`);await p.click('[data-action=submit]');
+ assert.equal(await p.locator('.choice.correct').count(),0);assert.doesNotMatch(await p.locator('.feedback').innerText(),/Correct answer:/);assert.equal(await p.locator('.explanation').count(),0);assert.ok(await p.locator('.video-link').count());
+ await p.screenshot({path:'tmp/v2-wrong.png',fullPage:true});
+ await p.click('[data-action=explanation]');assert.equal(await p.locator('.choice.correct').count(),1);assert.ok(await p.locator('.explanation img').count());
+ await p.evaluate(()=>finish());await p.click('[data-review="0"]');assert.equal(await p.locator('.explanation').count(),0);assert.equal(await p.locator('.choice.correct').count(),0);assert.ok(await p.locator('.highlighted').count()>=4);
+ await p.click('[data-reveal-review="0"]');assert.ok(await p.locator('.explanation img').count());
+ await p.click('[data-action=results]');await p.click('[data-action=setup]');await p.selectOption('#subject','Math');await p.click('[data-action=start]');await p.waitForFunction(()=>session.questionStarted!==null);
+ await p.evaluate(()=>{session.qs=[BANK.find(q=>q.type==='numeric'&&q.correct==='403')];session.index=0;session.answers=[];session.selected=null;renderQuestion();readyQuestion();});await p.waitForFunction(()=>[...document.querySelectorAll('.document img')].every(i=>i.complete&&i.naturalWidth>0));
+ await p.screenshot({path:'tmp/v2-math.png',fullPage:true});await p.fill('#numeric-answer','1/0');assert.ok(await p.locator('[data-action=submit]').isDisabled());
+ await p.fill('#numeric-answer','806/2');await p.press('#numeric-answer','Enter');assert.match(await p.locator('.feedback').innerText(),/Correct\. Nicely done/);
+ await p.click('[data-action=next]');assert.match(await p.locator('.stats').innerText(),/100%/);assert.match(await p.locator('.result-title').innerText(),/Math/);
+ await p.click('[data-action=insights]');await p.selectOption('#insight-subject','Math');assert.ok(await p.locator('table tbody tr').count()>=4);assert.match(await p.locator('table').innerText(),/Algebra/);await p.screenshot({path:'tmp/v2-insights.png',fullPage:true});
+ await p.reload();const persisted=await p.evaluate(id=>saved.highlights[id],firstId);assert.ok(persisted.length>=4);
+ await p.click('[data-action=insights]');await p.setViewportSize({width:390,height:844});assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await p.screenshot({path:'tmp/v2-mobile.png',fullPage:true});
+ assert.equal(await p.evaluate(()=>numericCorrect('2/3','.6666, .6667, 2/3')),true);assert.equal(await p.evaluate(()=>numericCorrect('0.25','0.25, 1/4')),true);assert.equal(await p.evaluate(()=>numericCorrect('0.2501','0.25, 1/4')),false);
+ assert.deepEqual(errors,[]);console.log('PASS: all imports and skill video coverage, persisted highlighting, wrong-answer concealment in practice/review, explicit reveal, fraction/numeric grading, input validation, category insights, mobile layout, browser storage; no JS errors.');await browser.close();
+})().catch(e=>{console.error(e);process.exitCode=1;});
