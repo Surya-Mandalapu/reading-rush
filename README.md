@@ -1,8 +1,12 @@
-# Reading Rush
+# DosPrep
 
 Personal SAT practice with a library of **1,219 unique Hard questions**: **609 Reading and Writing** and **610 Math**, imported from the supplied College Board exports. Math includes 387 multiple-choice and 223 typed-response questions. Four questions from the initial export also appear in the full Reading and Writing export and are deduplicated by question ID.
 
-Live app: https://suryamandalapu-boop.github.io/reading-rush/
+Website: https://suryamandalapu-boop.github.io/reading-rush/
+
+Practice: https://suryamandalapu-boop.github.io/reading-rush/practice.html
+
+For Firebase/GA4 activation and SEO configuration, see [SETUP.md](SETUP.md). The frontend integrations are implemented; production activation requires a connected Firebase project and GA4 measurement ID.
 
 ## Practice and review
 

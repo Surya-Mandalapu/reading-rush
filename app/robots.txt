@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://suryamandalapu-boop.github.io/reading-rush/sitemap.xml

@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||undefined,headless:true});
  const p=await browser.newPage({viewport:{width:1380,height:1000}}),errors=[];p.on('pageerror',e=>errors.push(e.message));
- await p.goto(process.env.READING_RUSH_URL||'http://127.0.0.1:8766');
+ await p.goto(process.env.READING_RUSH_URL||'http://127.0.0.1:8767/practice.html');
  const counts=await p.evaluate(()=>({rw:BANK.filter(q=>q.subject==='Reading and Writing').length,math:BANK.filter(q=>q.subject==='Math').length,missing:BANK.filter(q=>!window.SKILL_VIDEOS[q.skill]).map(q=>q.skill),numeric:BANK.filter(q=>q.type==='numeric').length}));
  assert.equal(counts.rw,609);assert.equal(counts.math,610);assert.deepEqual(counts.missing,[]);assert.ok(counts.numeric>0);console.log('Library:',counts);
  await p.click('[data-action=start]');await p.waitForFunction(()=>session.questionStarted!==null);

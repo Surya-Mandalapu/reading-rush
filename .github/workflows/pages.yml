@@ -1,4 +1,4 @@
-name: Deploy Reading Rush
+name: Deploy DosPrep
 on:
   push:
     branches: [main]

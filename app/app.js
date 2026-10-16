@@ -1,7 +1,8 @@
 'use strict';
 const root=document.getElementById('app');
 const BANK=window.QUESTIONS;
-const KEY='reading-rush-v1';
+let KEY='reading-rush-v1';
+let activeAccountId=null;
 let saved;
 try{saved=JSON.parse(localStorage.getItem(KEY))||{};}catch{saved={};}
 saved.history=Array.isArray(saved.history)?saved.history:[];
@@ -14,7 +15,7 @@ const time=s=>`${Math.floor(Math.max(0,s)/60)}:${String(Math.floor(Math.max(0,s)
 const persist=()=>{try{localStorage.setItem(KEY,JSON.stringify(saved));}catch{alert('Your browser could not save progress. Export your progress before closing.');}};
 const images=(paths,alt)=>paths.map((p,i)=>`<img class="pdf-img" src="${esc(p)}" alt="${esc(alt)}${paths.length>1?' (part '+(i+1)+')':''}">`).join('');
 const icon='<span class="logo">ϟ</span>';
-function shell(body,active='rush'){return `<div class="shell"><aside class="sidebar"><div class="brand">${icon}reading<b>rush</b></div><div class="eyebrow">Your study space</div><nav class="nav"><button data-action="insights" class="${active==='insights'?'active':''}">◈ &nbsp; Category insights</button><button data-action="setup" class="${active==='rush'?'active':''}">ϟ &nbsp; Question Rush</button><button data-action="history" class="${active==='history'?'active':''}">◷ &nbsp; Practice history</button></nav><div class="aside-note">SAT · Reading, Writing & Math<br>Personal practice library<br><br>Progress stays in this browser.<br><button data-action="export" style="margin-top:12px">Export progress</button><label style="display:block;margin-top:14px">Restore progress <input type="file" id="restore" accept="application/json" style="max-width:170px;margin-top:8px"></label></div></aside><main><div class="mobile-nav"><button data-action="setup">Practice</button><button data-action="insights">Insights</button><button data-action="history">History</button><button data-action="export">Backup</button></div>${body}</main></div>`;}
+function shell(body,active='rush'){return `<div class="shell"><aside class="sidebar"><a href="index.html" class="brand brand-link">${icon}Dos<b>Prep</b></a>${accountControls()}<div class="eyebrow">Your study space</div><nav class="nav"><button data-action="insights" class="${active==='insights'?'active':''}">◈ &nbsp; Category insights</button><button data-action="setup" class="${active==='rush'?'active':''}">ϟ &nbsp; Question Rush</button><button data-action="history" class="${active==='history'?'active':''}">◷ &nbsp; Practice history</button></nav><div class="aside-note">SAT · Reading, Writing & Math<br>Your practice library<br><br>Progress is saved on this device. Signing in does not sync it across devices.<br><button data-action="export" style="margin-top:12px">Export progress</button><label style="display:block;margin-top:14px">Restore progress <input type="file" id="restore" accept="application/json" style="max-width:170px;margin-top:8px"></label></div></aside><main><div class="mobile-nav">${accountControls()}<button data-action="setup">Practice</button><button data-action="insights">Insights</button><button data-action="history">History</button><button data-action="export">Backup</button></div>${body}</main></div>`;}
 function pool(){
  const answered=new Set(saved.history.flatMap(h=>h.answers.map(a=>a.id)));
  const missed=new Set(saved.history.flatMap(h=>h.answers.filter(a=>!a.correct).map(a=>a.id)));
@@ -30,7 +31,7 @@ function shuffle(xs){const a=[...xs];for(let i=a.length-1;i>0;i--){const j=Math.
 function start(){
  const qs=shuffle(pool()).slice(0,config.count==='All'?Infinity:config.count);if(!qs.length)return;
  session={id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),qs,index:0,answers:[],selected:null,eliminated:[],limit:paceLimit(config.pace,config.subject),subject:config.subject,pace:config.pace,streak:0,best:0,started:Date.now(),questionStarted:null,showExplanation:false};
- renderQuestion();startClock();readyQuestion();
+ renderQuestion();startClock();readyQuestion();window.DosPrepAnalytics?.track('practice_start',{subject:session.subject,pace:session.pace,question_count:session.qs.length});
 }
 function stopClock(){clearInterval(clock);clock=null;}
 function startClock(){stopClock();clock=setInterval(tick,200);tick();}
@@ -52,7 +53,7 @@ function next(){if(session.index+1===session.qs.length){finish();return;}session
 function finish(){
  stopClock();if(!session.answers.length){setup();return;}
  const result={id:session.id,date:new Date().toISOString(),pace:session.pace,subject:session.subject,limit:session.limit,best:session.best,answers:session.answers,planned:session.qs.length};
- saved.history.unshift(result);persist();showResults(result);session=null;
+ saved.history.unshift(result);persist();window.DosPrepAnalytics?.track('practice_complete',{subject:result.subject,pace:result.pace,question_count:result.answers.length});showResults(result);session=null;
 }
 function showResults(h){
  stopClock();currentView='results';review=h;
@@ -85,7 +86,7 @@ root.addEventListener('click',e=>{
  case 'insights':insights();break;case 'history':history();break;case 'results':showResults(review);break;
  case 'flag':{const id=session.qs[session.index].id;saved.flags=saved.flags.includes(id)?saved.flags.filter(v=>v!==id):[...saved.flags,id];persist();renderQuestion();break;}
  case 'explanation':session.showExplanation=!session.showExplanation;renderQuestion();break;
- case 'export':{const blob=new Blob([JSON.stringify(saved,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='reading-rush-progress.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);break;}
+ case 'export':{const blob=new Blob([JSON.stringify(saved,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='dosprep-progress.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);break;}
  }
 });
 root.addEventListener('change',async e=>{
@@ -97,7 +98,7 @@ root.addEventListener('change',async e=>{
  if(el.id==='difficulty'){config.difficulty=el.value;setup();}
  if(el.id==='pool'){config.pool=el.value;setup();}
  if(el.id==='skip'){config.skip=el.checked;setup();}
- if(el.id==='restore'&&el.files[0]){try{const data=JSON.parse(await el.files[0].text());if(!Array.isArray(data.history)||!Array.isArray(data.flags)||!data.flags.every(x=>typeof x==='string')||!data.history.every(h=>typeof h.id==='string'&&Number.isFinite(h.best)&&!isNaN(Date.parse(h.date))&&typeof h.pace==='string'&&Array.isArray(h.answers)&&h.answers.length>0&&h.answers.every(a=>typeof a.id==='string'&&typeof a.skill==='string'&&typeof a.difficulty==='string'&&typeof a.correct==='boolean'&&Number.isFinite(a.seconds)&&a.seconds>=0&&Number.isInteger(a.stars)&&a.stars>=0&&a.stars<=3)))throw Error();if(confirm('Replace this browser’s progress with the selected backup?')){saved=data;saved.highlights=saved.highlights&&typeof saved.highlights==='object'?saved.highlights:{};persist();history();}}catch{alert('That file is not a valid Reading Rush progress backup.');}}
+ if(el.id==='restore'&&el.files[0]){try{const data=JSON.parse(await el.files[0].text());if(!Array.isArray(data.history)||!Array.isArray(data.flags)||!data.flags.every(x=>typeof x==='string')||!data.history.every(h=>typeof h.id==='string'&&Number.isFinite(h.best)&&!isNaN(Date.parse(h.date))&&typeof h.pace==='string'&&Array.isArray(h.answers)&&h.answers.length>0&&h.answers.every(a=>typeof a.id==='string'&&typeof a.skill==='string'&&typeof a.difficulty==='string'&&typeof a.correct==='boolean'&&Number.isFinite(a.seconds)&&a.seconds>=0&&Number.isInteger(a.stars)&&a.stars>=0&&a.stars<=3)))throw Error();if(confirm('Replace this browser’s progress with the selected backup?')){saved=data;saved.highlights=saved.highlights&&typeof saved.highlights==='object'?saved.highlights:{};persist();history();}}catch{alert('That file is not a valid DosPrep progress backup.');}}
 });
 document.addEventListener('keydown',e=>{if(currentView!=='question'||e.ctrlKey||e.metaKey||e.altKey||/INPUT|SELECT|TEXTAREA/.test(e.target.tagName))return;const k=e.key.toUpperCase();if(session.questionStarted!==null&&session.qs[session.index].type!=='numeric'&&'ABCD'.includes(k)&&k.length===1&&!session.answers[session.index]){session.selected=k;session.eliminated=session.eliminated.filter(x=>x!==k);renderQuestion();}if(e.key==='Enter'&&e.target===document.body){e.preventDefault();if(session.answers[session.index])next();else submit();}});
 window.addEventListener('beforeunload',e=>{if(currentView==='question'){e.preventDefault();e.returnValue='';}});
@@ -168,7 +169,7 @@ function categoryTable(answers,subject){
  return `<section class="card category-card"><h2>Category by category</h2><small>Attempt-based metrics · repeated questions count as additional attempts.</small><div class="table-scroll"><table><thead><tr><th>Category</th><th>Attempts</th><th>Accuracy</th><th>Avg time</th><th>Timeouts</th><th></th></tr></thead><tbody>${domains.map(d=>{const as=attempts.filter(a=>a.domain===d),n=as.length;return `<tr><td>${esc(d)}</td><td>${n}</td><td>${n?Math.round(100*as.filter(a=>a.correct).length/n)+'%':'—'}</td><td>${n?time(as.reduce((s,a)=>s+a.seconds,0)/n):'—'}</td><td>${as.filter(a=>a.timeout).length}</td><td><button data-drill="all" data-subject="${esc(subject)}" data-domain="${esc(d)}">Practice</button></td></tr>`;}).join('')}</tbody></table></div></section>`;
 }
 function insights(){
- stopClock();currentView='insights';const subject=insightSubject;
+ stopClock();currentView='insights';const subject=insightSubject;window.DosPrepAnalytics?.track('view_insights',{subject});
  const attempts=enriched(saved.history.flatMap(h=>h.answers)).filter(a=>a.subject===subject);
  const skills=[...new Set(BANK.filter(q=>q.subject===subject).map(q=>q.skill))];
  const stats=skills.map(skill=>{const as=attempts.filter(a=>a.skill===skill),n=as.length,correct=as.filter(a=>a.correct).length;return {skill,as,n,correct,accuracy:n?correct/n:null,avg:n?as.reduce((s,a)=>s+a.seconds,0)/n:null};});
@@ -176,4 +177,27 @@ function insights(){
  root.innerHTML=shell(`<div class="eyebrow">Find your next focus</div><h1>Category insights</h1><p class="muted">All completed sessions, organized by category and skill.</p><label for="insight-subject">Subject</label><select id="insight-subject" style="margin:12px 0 24px;max-width:350px"><option>Reading and Writing</option><option>Math</option></select><div class="banner"><div><h2>${priority?'Focus next: '+esc(priority.skill):'Build your baseline'}</h2><small>${priority?Math.round(priority.accuracy*100)+'% accuracy across '+priority.n+' attempts. Review the lesson, then try a focused set.':'Complete at least 3 attempts in a skill to get a recommendation. Small samples are only an early signal.'}</small></div>${priority?`<button class="primary" data-drill="${esc(priority.skill)}" data-subject="${esc(subject)}">Practice this skill</button>`:''}</div>${categoryTable(attempts,subject)}<h2>Skill insights</h2><div class="skill-insights">${stats.map(s=>`<section class="card"><div class="eyebrow">${esc(BANK.find(q=>q.subject===subject&&q.skill===s.skill).domain)}</div><h3>${esc(s.skill)}</h3><div class="skill-metrics"><span><strong>${s.n?Math.round(s.accuracy*100)+'%':'—'}</strong>Accuracy</span><span><strong>${s.n}</strong>Attempts</span><span><strong>${s.n?time(s.avg):'—'}</strong>Avg time</span></div><p class="muted">${s.n?s.n<3?'Early signal — keep practicing for a clearer picture.':s.accuracy<.7?'Review this skill, then practice a short focused set.':s.avg>paceLimit('Steady',subject)?'Accuracy is developing. Try a steady round to work on pacing.':'Keep this skill fresh with occasional review.':'No attempts yet. Try a short set to establish a baseline.'}</p><div class="toolbar"><button data-drill="${esc(s.skill)}" data-subject="${esc(subject)}">Practice skill →</button></div><details><summary>Video lessons for this skill</summary>${videos({skill:s.skill})}</details></section>`).join('')}</div>`,'insights');
  document.getElementById('insight-subject').value=subject;window.scrollTo(0,0);
 }
-setup();
+
+function accountControls(){
+ const user=window.DosPrepAuth?.user;
+ return `<div class="account-controls">${user?`<span>Signed in</span><button data-signout>Sign out</button>`:`<a href="signin.html">Sign in</a><small>or keep practicing as a guest</small>`}</div>`;
+}
+function normalizeProgress(value){
+ const data=value&&typeof value==='object'?value:{};
+ data.history=Array.isArray(data.history)?data.history:[];
+ data.flags=Array.isArray(data.flags)?data.flags:[];
+ data.highlights=data.highlights&&typeof data.highlights==='object'?data.highlights:{};
+ return data;
+}
+function syncAccount(event){
+ const next=event.detail.user?.uid||null;
+ if(next!==activeAccountId){
+  // Account data is isolated from guest data and other users on shared devices.
+  try{localStorage.setItem(KEY,JSON.stringify(saved));}catch{}
+  activeAccountId=next;KEY=next?'dosprep-progress-'+next:'reading-rush-v1';
+  try{saved=normalizeProgress(JSON.parse(localStorage.getItem(KEY)));}catch{saved=normalizeProgress({});}
+ }
+ if(currentView==='setup')setup();else if(currentView==='history')history();else if(currentView==='insights')insights();
+}
+document.addEventListener('dosprep-auth-change',syncAccount);
+if(window.DosPrepAuth?.user)syncAccount({detail:{user:window.DosPrepAuth.user}});else setup();

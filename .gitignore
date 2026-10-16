@@ -5,3 +5,9 @@ tools/browser-check/
 node_modules/
 __pycache__/
 reading-rush-progress*.json
+dosprep-progress*.json
+firebase-debug*.log
+*-debug.log
+.firebase/
+.env*
+*service-account*.json
