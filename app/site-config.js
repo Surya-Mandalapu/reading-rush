@@ -6,7 +6,8 @@ window.DOSPREP_CONFIG = Object.freeze({
     "projectId": "dosprep-study-a7f31",
     "appId": "1:772349583234:web:18813d737ab9b9a1f8399b",
     "storageBucket": "dosprep-study-a7f31.firebasestorage.app",
-    "messagingSenderId": "772349583234"
+    "messagingSenderId": "772349583234",
+    "measurementId": "G-H9PYRFYZ4R"
   },
-  "measurementId": ""
+  "measurementId": "G-H9PYRFYZ4R"
 });

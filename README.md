@@ -6,7 +6,7 @@ Website: https://suryamandalapu-boop.github.io/reading-rush/
 
 Practice: https://suryamandalapu-boop.github.io/reading-rush/practice.html
 
-For Firebase/GA4 activation and SEO configuration, see [SETUP.md](SETUP.md). Firebase Authentication is configured for Google and email/password sign-in. Google Analytics activation is pending its account/property link and measurement ID.
+For Firebase/GA4 activation and SEO configuration, see [SETUP.md](SETUP.md). Firebase Authentication is configured for Google and email/password sign-in. Google Analytics is connected through the Firebase-linked GA4 measurement ID and loads only after visitor consent.
 
 ## Practice and review
 

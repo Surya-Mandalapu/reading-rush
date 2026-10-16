@@ -2,7 +2,7 @@
 
 The site uses Firebase project **dosprep-study-a7f31** (DosPrep) and Web app **1:772349583234:web:18813d737ab9b9a1f8399b**. Google and Email/Password authentication have been deployed, including the GitHub Pages authorized domain. Real-backend email signup, login, and sign-out passed tests; the temporary QA account was deleted. The live Google popup reaches Google Accounts, and its Firebase project config confirms that suryamandalapu-boop.github.io is authorized.
 
-**Analytics remains pending:** enable Google Analytics in the [project Integrations settings](https://console.firebase.google.com/project/dosprep-study-a7f31/settings/integrations). After linking, retrieve the web app SDK config again and add its `measurementId` to `app/site-config.js`. No tracking ID is invented or active before that step.
+**Analytics is linked:** Firebase returned measurement ID **G-H9PYRFYZ4R** for DosPrep Web. The public site config uses this ID. Tracking loads only after visitor consent; activation is deployed through GitHub Pages.
 
 ## Project configuration reference
 
@@ -25,7 +25,7 @@ node tools/configure-site.mjs "public-firebase-web-config.json" "G-YOURREALID"
 
 Firebase handles identity only. Guest, signed-in, and other accounts have separate browser-local study stores. This update does not add Firestore or cloud synchronization. An account does not make static question assets private; GitHub Pages serves the public app and assets. The original guest history remains under its existing storage key. Export it as a backup before signing in and restore it within the account if desired.
 
-Authentication is configured. Analytics remains inactive until a real measurement ID is linked; practice works independently of analytics. Optional usage tracking is off until visitors consent. The app does not send emails, passwords, answers, question content, highlights, or Firebase user IDs to Analytics. Analytics preference can be changed on the privacy page.
+Authentication and Analytics are configured. Practice works independently of analytics. Optional usage tracking is off until visitors consent. The app does not send emails, passwords, answers, question content, highlights, or Firebase user IDs to Analytics. Analytics preference can be changed on the privacy page.
 
 ## SEO
 
@@ -45,4 +45,4 @@ python -m http.server 8767 --bind 127.0.0.1 --directory app
 node tools/verify-dosprep.cjs
 ```
 
-It injects demo configuration into the browser test only and tests email signup, login, rejected passwords, password resets, sign-out, account isolation, SEO metadata, consent behavior, and sanitized analytics event payloads. Google OAuth completion requires an interactive Google account. Real GA4 delivery still requires Analytics activation above.
+It injects demo configuration into the browser test only and tests email signup, login, rejected passwords, password resets, sign-out, account isolation, SEO metadata, consent behavior, and sanitized analytics event payloads. Google OAuth completion requires an interactive Google account. Use `node tools/verify-live-analytics.cjs` to check consent behavior and real collection requests on the live website. HTTP acceptance verifies collection transport; report visibility must be checked in the owner's GA4 account.
