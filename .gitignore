@@ -1,0 +1,7 @@
+*.mp4
+*.pdf
+tmp/
+tools/browser-check/
+node_modules/
+__pycache__/
+reading-rush-progress*.json
