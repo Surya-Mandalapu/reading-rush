@@ -6,7 +6,7 @@ Website: https://suryamandalapu-boop.github.io/reading-rush/
 
 Practice: https://suryamandalapu-boop.github.io/reading-rush/practice.html
 
-For Firebase/GA4 activation and SEO configuration, see [SETUP.md](SETUP.md). The frontend integrations are implemented; production activation requires a connected Firebase project and GA4 measurement ID.
+For Firebase/GA4 activation and SEO configuration, see [SETUP.md](SETUP.md). Firebase Authentication is configured for Google and email/password sign-in. Google Analytics activation is pending its account/property link and measurement ID.
 
 ## Practice and review
 

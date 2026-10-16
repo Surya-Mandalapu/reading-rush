@@ -1,10 +1,12 @@
 # Activate DosPrep accounts and analytics
 
-The branding, public homepage, SEO, and app are deployable now. Firebase Authentication and GA4 are implemented but **not active in production**: the existing Firebase CLI login returned `UNAUTHENTICATED`, and no production project/web-app configuration or GA4 measurement ID has been supplied. `app/site-config.js` intentionally contains no invented project or tracking ID.
+The site uses Firebase project **dosprep-study-a7f31** (DosPrep) and Web app **1:772349583234:web:18813d737ab9b9a1f8399b**. Google and Email/Password authentication have been deployed, including the GitHub Pages authorized domain. Real-backend email signup, login, and sign-out passed tests; the temporary QA account was deleted.
 
-## Connect a real project
+**Analytics remains pending:** enable Google Analytics in the [project Integrations settings](https://console.firebase.google.com/project/dosprep-study-a7f31/settings/integrations). After linking, retrieve the web app SDK config again and add its `measurementId` to `app/site-config.js`. No tracking ID is invented or active before that step.
 
-Install/connect the official Firebase integration in Codex, or run `firebase login --reauth` locally. Then choose an existing project or create a project named DosPrep in the [Firebase console](https://console.firebase.google.com/). No billing upgrade is required for the implemented email/password and Google sign-in flows under their applicable free quotas; do not enable paid services just for this app.
+## Project configuration reference
+
+The project and web app are already created. If the operator login expires, run `npx -y firebase-tools@latest login --reauth` to reconnect. No billing upgrade is required for the implemented email/password and Google sign-in flows under their applicable free quotas; do not enable paid services just for this app.
 
 1. Register a **Web app** in the project and obtain its public `firebaseConfig` object (apiKey, authDomain, projectId, appId, and related public fields). Do not share service-account private keys or OAuth tokens.
 2. In **Authentication → Sign-in method**, enable **Email/Password** and **Google**. Choose the project's support email when enabling Google. Set a password policy of at least 8 characters, and enable email enumeration protection where supported.
@@ -23,7 +25,7 @@ node tools/configure-site.mjs "public-firebase-web-config.json" "G-YOURREALID"
 
 Firebase handles identity only. Guest, signed-in, and other accounts have separate browser-local study stores. This update does not add Firestore or cloud synchronization. An account does not make static question assets private; GitHub Pages serves the public app and assets. The original guest history remains under its existing storage key. Export it as a backup before signing in and restore it within the account if desired.
 
-Authentication and Analytics remain unavailable until configured; practice still works. Optional usage tracking is off until visitors consent. The app does not send emails, passwords, answers, question content, highlights, or Firebase user IDs to Analytics. Analytics preference can be changed on the privacy page.
+Authentication is configured. Analytics remains inactive until a real measurement ID is linked; practice works independently of analytics. Optional usage tracking is off until visitors consent. The app does not send emails, passwords, answers, question content, highlights, or Firebase user IDs to Analytics. Analytics preference can be changed on the privacy page.
 
 ## SEO
 
@@ -43,4 +45,4 @@ python -m http.server 8767 --bind 127.0.0.1 --directory app
 node tools/verify-dosprep.cjs
 ```
 
-It injects demo configuration into the browser test only and tests email signup, login, rejected passwords, password resets, sign-out, account isolation, SEO metadata, consent behavior, and sanitized analytics event payloads. Production Google OAuth and real GA4 delivery require the live configuration above.
+It injects demo configuration into the browser test only and tests email signup, login, rejected passwords, password resets, sign-out, account isolation, SEO metadata, consent behavior, and sanitized analytics event payloads. Google OAuth completion requires an interactive Google account. Real GA4 delivery still requires Analytics activation above.

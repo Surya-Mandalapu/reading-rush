@@ -1,7 +1,25 @@
 {
   "emulators": {
-    "auth": {"port": 9099},
-    "ui": {"enabled": false},
+    "auth": {
+      "port": 9099
+    },
+    "ui": {
+      "enabled": false
+    },
     "singleProjectMode": true
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "DosPrep",
+        "supportEmail": "suryamandalapu@gmail.com"
+      }
+    },
+    "authorizedDomains": [
+      "dosprep-study-a7f31.firebaseapp.com",
+      "dosprep-study-a7f31.web.app",
+      "suryamandalapu-boop.github.io"
+    ]
   }
 }
