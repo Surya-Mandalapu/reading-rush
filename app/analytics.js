@@ -12,6 +12,7 @@
  }
  function activate(){
   if(enabled||choice()!=='granted'||!/^G-[A-Z0-9]+$/.test(config.measurementId||''))return;
+  if(!document.getElementById('pulse-consented-tracker')){const p=document.createElement('script');p.id='pulse-consented-tracker';p.src='https://project-pulse-events-surya.creamymango256.chatgpt.site/pulse.js';p.dataset.project='dosprep';p.dataset.consentKey=key;document.head.appendChild(p);}
   enabled=true;window['ga-disable-'+config.measurementId]=false;window.dataLayer=window.dataLayer||[];window.gtag=function(){window.dataLayer.push(arguments);};
   window.gtag('js',new Date());
   window.gtag('config',config.measurementId,{send_page_view:false,allow_google_signals:false,allow_ad_personalization_signals:false});
