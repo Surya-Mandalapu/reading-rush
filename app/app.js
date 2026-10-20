@@ -1,5 +1,9 @@
 'use strict';
 const root=document.getElementById('app');
+let readingSize='Comfortable';
+try{const value=localStorage.getItem('dosprep-reading-size');if(['Compact','Comfortable','Large'].includes(value))readingSize=value;}catch{}
+function applyReadingSize(){document.documentElement.dataset.readingSize=readingSize;}
+applyReadingSize();
 const BANK=window.QUESTIONS;
 let KEY='reading-rush-v1';
 let activeAccountId=null;
@@ -36,7 +40,15 @@ function start(){
 function stopClock(){clearInterval(clock);clock=null;}
 function startClock(){stopClock();clock=setInterval(tick,200);tick();}
 function elapsed(){return session.questionStarted===null?0:(Date.now()-session.questionStarted)/1000;}
-function tick(){if(!session||currentView!=='question')return;if(session.questionStarted===null){const t=document.getElementById('timer');if(t)t.textContent='Loading…';return;}const done=session.answers[session.index];const t=document.getElementById('timer');if(t)t.textContent=done?time(done.seconds):time(Math.ceil(session.limit-elapsed()));if(!done&&elapsed()>=session.limit)submit(true);}
+function tick(){
+ if(!session||currentView!=='question')return;
+ const t=document.getElementById('timer'),box=t?.closest('.timer');
+ if(session.questionStarted===null){if(t)t.textContent=session.countingDown?'Get ready':'Loading…';return;}
+ const done=session.answers[session.index],remaining=Math.max(0,session.limit-elapsed());
+ if(t)t.textContent=done?time(done.seconds):time(Math.ceil(remaining));
+ if(box){box.style.setProperty('--time-left',`${100*remaining/session.limit}%`);box.classList.toggle('urgent',!done&&remaining<=10);box.classList.toggle('timer-done',Boolean(done));box.setAttribute('aria-label',done?`Answered in ${time(done.seconds)}`:`Time remaining ${time(Math.ceil(remaining))}`);}
+ if(!done&&remaining<=0)submit(true);
+}
 function renderQuestion(){
  currentView='question';const q=session.qs[session.index],a=session.answers[session.index];
  root.innerHTML=`<header class="study-head"><div class="study-top"><button data-action="end">← End round</button><div class="study-status"><span>🔥 ${session.streak} streak</span><span>${session.answers.filter(a=>a.correct).length}/${session.answers.length} correct</span></div><div class="timer"><span class="stars">★</span> &nbsp; <span id="timer">${time(a?a.seconds:session.limit-elapsed())}</span></div></div><div class="progress"><span style="width:${100*session.answers.length/session.qs.length}%"></span></div></header><section class="study"><div class="question-meta"><span>${esc(q.subject)} &nbsp; / &nbsp; ${esc(q.skill)} &nbsp; · &nbsp; ${q.difficulty}</span><button data-action="flag" class="${saved.flags.includes(q.id)?'flagged':''}">${saved.flags.includes(q.id)?'⚑ Marked':'⚐ Mark for review'}</button></div><div class="question-split"><div class="paper passage">${highlightTools(q)}${passage(q)}</div><div><div class="choices">${q.type==='numeric'?numericInput(q,a):'ABCD'.split('').map(k=>`<div class="choice-row"><button data-choice="${k}" ${a||session.questionStarted===null?'disabled':''} class="choice ${!a&&session.selected===k?'chosen':''} ${session.eliminated.includes(k)?'eliminated':''} ${a&&(a.correct||session.showExplanation)&&q.correct===k?'correct':''} ${a&&!a.correct&&a.selected===k?'wrong':''}" aria-label="Choose answer ${k}" aria-pressed="${session.selected===k}"><span class="letter">${k}</span><div class="choice-content">${images(q.choices[k],'Answer choice '+k)}</div></button><button data-eliminate="${k}" ${a?'disabled':''} class="eliminate" aria-label="${session.eliminated.includes(k)?'Restore':'Eliminate'} answer ${k}">${session.eliminated.includes(k)?'↶':'⊘'}</button></div>`).join('')}</div>${a?`<div class="feedback ${a.correct?'':'bad'}" role="status"><strong>${a.timeout?'Time’s up':a.correct?'Correct. Nicely done.':'Keep going. This is how you learn.'} <span class="stars">${'★'.repeat(a.stars)}</span></strong>${a.correct||session.showExplanation?'Correct answer: '+esc(q.correct)+' · ':''}Your time: ${time(a.seconds)}<br><button data-action="explanation" style="margin-top:12px">${session.showExplanation?'Hide explanation':'Reveal answer & explanation'}</button></div>`:''}${a?videos(q):''}</div></div>${a&&session.showExplanation?`<div class="card explanation"><h2>Answer explanation</h2>${images(q.explanation,'College Board answer rationale for '+q.id)}</div>`:''}</section><footer class="study-footer"><span>Question ${session.index+1} / ${session.qs.length}<br><small>ID ${q.id}</small></span><span class="muted">${session.pace} pace · ${session.limit}s</span><button class="primary" data-action="${a?'next':'submit'}" ${!a&&(!session.selected||session.questionStarted===null)?'disabled':''}>${a?(session.index+1===session.qs.length?'See results':'Next question →'):'Check answer'}</button></footer>`;
@@ -76,7 +88,7 @@ root.addEventListener('click',e=>{
  if(b.dataset.eliminate){const k=b.dataset.eliminate;if(session.eliminated.includes(k))session.eliminated=session.eliminated.filter(v=>v!==k);else{session.eliminated.push(k);if(session.selected===k)session.selected=null;}renderQuestion();return;}
  if(b.dataset.revealReview!==undefined){showReview(Number(b.dataset.revealReview),true);return;}
  if(b.dataset.drill){config.subject=b.dataset.subject;config.domain=b.dataset.domain||'All';config.skills=b.dataset.drill==='all'?[...new Set(BANK.filter(q=>q.subject===config.subject).map(q=>q.skill))]:[b.dataset.drill];config.skip=false;config.pool='all';setup();return;}
- if(b.dataset.action==='highlight'){addHighlight();return;}
+ if(b.dataset.readingSize){readingSize=b.dataset.readingSize;applyReadingSize();try{localStorage.setItem('dosprep-reading-size',readingSize);}catch{}root.querySelectorAll('[data-reading-size]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.readingSize===readingSize)));return;}
  if(b.dataset.clearHighlights){delete saved.highlights[b.dataset.clearHighlights];persist();refreshHighlights();return;}
  if(b.dataset.review!==undefined){showReview(Number(b.dataset.review));return;}
  if(b.dataset.history!==undefined){showResults(saved.history[Number(b.dataset.history)]);return;}
@@ -110,7 +122,19 @@ async function readyQuestion(){
  try{
   await Promise.all(imgs.map(img=>img.complete?(img.naturalWidth?Promise.resolve():Promise.reject(Error('Image failed'))):new Promise((resolve,reject)=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',reject,{once:true});})));
   if(session!==active||session.index!==index||currentView!=='question')return;
+  if(index===0&&!active.introShown&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+   active.introShown=true;active.countingDown=true;tick();
+   const intro=document.createElement('div');intro.className='round-intro';intro.setAttribute('role','status');intro.setAttribute('aria-live','polite');root.append(intro);
+   for(const beat of ['3','2','1','Go!']){
+    if(session!==active||currentView!=='question'||!intro.isConnected){intro.remove();return;}
+    intro.innerHTML=`<div class="intro-card"><span class="eyebrow">${esc(active.subject)} · ${esc(active.pace)}</span><h2>Your rush starts now</h2><strong class="intro-number">${beat}</strong><p>${active.qs.length} questions. Find your flow.</p></div>`;
+    await new Promise(resolve=>setTimeout(resolve,beat==='Go!'?300:650));
+   }
+   intro.remove();active.countingDown=false;
+  }
+  if(session!==active||session.index!==index||currentView!=='question')return;
   active.questionStarted=Date.now();renderQuestion();
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches)root.querySelector('.study')?.animate([{opacity:0,transform:'translateY(12px)'},{opacity:1,transform:'translateY(0)'}],{duration:350,easing:'ease-out'});
  }catch{
   if(session!==active||session.index!==index)return;
   const status=document.getElementById('highlight-status');if(status)status.textContent='A question image could not load. Reload this page to try again. The timer has not started.';
@@ -137,16 +161,24 @@ root.addEventListener('input',e=>{
 });
 root.addEventListener('keydown',e=>{if(e.target.id==='numeric-answer'&&e.key==='Enter'&&!session.answers[session.index]&&parseNumeric(session.selected)!==null){e.preventDefault();submit();}});
 
-function highlightTools(q){return `<div class="highlight-tools"><button data-action="highlight">▰ Highlight selection</button><button data-clear-highlights="${q.id}">Clear highlights</button><small>Select passage text, then highlight. Highlights stay saved for this question.</small></div><div id="highlight-status" role="status" aria-live="polite"></div>`;}
+function highlightTools(q){return `<div class="highlight-tools"><span class="auto-highlight-label">▰ Select text to highlight</span><button data-clear-highlights="${q.id}">Clear highlights</button><div class="reading-sizes" role="group" aria-label="Reading size">${['Compact','Comfortable','Large'].map(size=>`<button data-reading-size="${size}" aria-pressed="${size===readingSize}">${size}</button>`).join('')}</div><small>Highlights save automatically when you finish selecting text.</small></div><div id="highlight-status" role="status" aria-live="polite"></div>`;}
 function passage(q){
  const marks=new Set(Array.isArray(saved.highlights[q.id])?saved.highlights[q.id]:[]);
  return q.passage.map((src,part)=>`<div class="document" data-question="${q.id}"><img class="pdf-img" src="${esc(src)}" alt="Original question ${q.id}" draggable="false"><div class="word-layer">${(q.passageText?.[part]||[]).map((w,i)=>`<span data-word="${part}:${i}" class="word ${marks.has(part+':'+i)?'highlighted':''}" style="left:${w.x}%;top:${w.y}%;width:${w.w}%;height:${w.h}%;font-size:${w.font}cqw">${esc(w.text)} </span>`).join('')}</div></div>`).join('');
 }
-// Preserve the text selection while the toolbar receives a pointer click.
-root.addEventListener('pointerdown',e=>{if(e.target.closest('[data-action="highlight"]'))e.preventDefault();});
+// Wait until the drag ends; selectionchange also covers touch selection handles.
+let selectingPassage=false,highlightDelay;
+document.addEventListener('pointerdown',e=>{selectingPassage=Boolean(e.target.closest('.word-layer'));});
+document.addEventListener('pointerup',()=>{selectingPassage=false;clearTimeout(highlightDelay);highlightDelay=setTimeout(addHighlight,0);});
+document.addEventListener('pointercancel',()=>{selectingPassage=false;});
+document.addEventListener('selectionchange',()=>{clearTimeout(highlightDelay);if(!selectingPassage)highlightDelay=setTimeout(addHighlight,350);});
+document.addEventListener('keyup',e=>{if(e.key==='Shift')addHighlight();});
 function addHighlight(){
  const selection=window.getSelection();const status=document.getElementById('highlight-status');
- if(!selection||selection.isCollapsed||!selection.rangeCount){if(status)status.textContent='Select some passage text first.';return;}
+ if(!selection||selection.isCollapsed||!selection.rangeCount)return;
+ const layer=node=>(node?.nodeType===Node.ELEMENT_NODE?node:node?.parentElement)?.closest('.word-layer');
+ const startLayer=layer(selection.anchorNode),endLayer=layer(selection.focusNode);
+ if(!startLayer||!endLayer||!root.contains(startLayer)||startLayer.closest('.document').dataset.question!==endLayer.closest('.document').dataset.question)return;
  const range=selection.getRangeAt(0);let count=0;
  root.querySelectorAll('.document [data-word]').forEach(word=>{
   if(!range.intersectsNode(word))return;
