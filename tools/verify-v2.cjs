@@ -8,6 +8,21 @@ const assert=require('node:assert/strict');
  if(await p.locator('[data-consent=denied]').count())await p.click('[data-consent=denied]');
  const counts=await p.evaluate(()=>({rw:BANK.filter(q=>q.subject==='Reading and Writing').length,math:BANK.filter(q=>q.subject==='Math').length,missing:BANK.filter(q=>!window.SKILL_VIDEOS[q.skill]).map(q=>q.skill),numeric:BANK.filter(q=>q.type==='numeric').length}));
  assert.equal(counts.rw,609);assert.equal(counts.math,610);assert.deepEqual(counts.missing,[]);assert.ok(counts.numeric>0);console.log('Library:',counts);
+ for(const subject of ['Reading and Writing','Math']){
+  await p.selectOption('#subject',subject);
+  const categories=await p.locator('[data-category]').evaluateAll(buttons=>buttons.map(b=>b.dataset.category));assert.equal(categories.length,4);
+  for(const category of categories)await p.locator('[data-category]').filter({hasText:category}).click();
+  assert.ok(await p.locator('[data-action=start]').isDisabled());assert.equal(await p.locator('[data-skill]').count(),0);
+  await p.locator('[data-category]').filter({hasText:categories[0]}).click();
+  assert.deepEqual(await p.evaluate(()=>[...new Set(pool().map(q=>q.domain))]),[categories[0]]);
+  const skill=await p.locator('[data-skill]').first().getAttribute('data-skill');await p.locator('[data-skill]').first().uncheck();
+  await p.locator('[data-category]').filter({hasText:categories[1]}).click();
+  assert.ok(await p.evaluate(({subject,domains,skill})=>pool().every(q=>q.subject===subject&&domains.includes(q.domain)&&q.skill!==skill),{subject,domains:categories.slice(0,2),skill}));
+  await p.click('[data-all-categories]');assert.equal(await p.locator('[data-category][aria-pressed=true]').count(),4);
+  await p.setViewportSize({width:390,height:844});assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ }
+ await p.setViewportSize({width:2560,height:1440});await p.selectOption('#subject','Reading and Writing');
+ await p.screenshot({path:'tmp/category-selectors.png',fullPage:true});
  await p.click('[data-action=start]');await p.waitForSelector('.round-intro');assert.equal(await p.evaluate(()=>session.questionStarted),null);
  await p.waitForFunction(()=>session.questionStarted!==null);assert.equal(await p.locator('.round-intro').count(),0);
  assert.ok(await p.locator('.document').first().evaluate(el=>el.clientWidth)>1300);
