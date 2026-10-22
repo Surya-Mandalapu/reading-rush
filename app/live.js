@@ -144,6 +144,7 @@ async function submitAnswer(){
  const round=room.round,answer=selection,q=byId.get(room.questionIds[round]);if(!validSelection(q))return;
  // The array transform merges simultaneous submissions without replacing a peer's status.
  const batch=writeBatch(db);batch.set(responseRef(round),{uid,round,answer,submittedAt:serverTimestamp()});batch.update(roomRef(),{answeredIds:arrayUnion(uid)});await batch.commit();
+ window.DosPrepAnswerEvents?.live(`live_${code}_${room.createdAt.toMillis()}_${round}_${uid}`,q.id);
 }
 async function removePlayer(playerUid){
  if(room.state!=='lobby')throw Error('Players can leave only in the lobby.');

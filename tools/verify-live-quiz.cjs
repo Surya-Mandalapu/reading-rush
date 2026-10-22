@@ -9,7 +9,7 @@ const fixture=[...questions.filter(q=>q.subject==='Reading and Writing').slice(0
  const browser=await playwright.chromium.launch({headless:true,executablePath:process.env.CHROMIUM_EXECUTABLE});
  const contexts=[],pages=[],errors=[];
  async function newPlayer(){
-  const context=await browser.newContext({viewport:{width:1440,height:1000}});contexts.push(context);
+  const context=await browser.newContext({viewport:{width:1440,height:1000}});contexts.push(context);await context.addInitScript(()=>{window.DOSPREP_TEST_MODE=true;});
   if(!production)await context.route('**/site-config.js',route=>route.fulfill({contentType:'application/javascript',body:fs.readFileSync('app/site-config.js','utf8')+'\nwindow.DOSPREP_CONFIG={...window.DOSPREP_CONFIG,liveEmulator:true,authEmulator:true};'}));
   if(!production)await context.route('**/questions.js',route=>route.fulfill({contentType:'application/javascript',body:'window.QUESTIONS='+JSON.stringify(fixture)+';'}));
   const page=await context.newPage();pages.push(page);page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.log('Browser:',m.text().slice(0,450));});

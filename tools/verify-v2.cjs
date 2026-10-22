@@ -4,6 +4,8 @@ const assert=require('node:assert/strict');
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||undefined,headless:true});
  const p=await browser.newPage({viewport:{width:2560,height:1440}}),errors=[];p.on('pageerror',e=>errors.push(e.message));
+ await p.addInitScript(()=>{window.DOSPREP_TEST_MODE=true;});
+ if(['localhost','127.0.0.1'].includes(new URL(process.env.READING_RUSH_URL||'http://127.0.0.1:8767/practice.html').hostname))await p.route('**/site-config.js',r=>r.fulfill({contentType:'application/javascript',body:require('node:fs').readFileSync('app/site-config.js','utf8')+'\nwindow.DOSPREP_CONFIG={...window.DOSPREP_CONFIG,liveEmulator:true,authEmulator:true};'}));
  await p.goto(process.env.READING_RUSH_URL||'http://127.0.0.1:8767/practice.html');
  if(await p.locator('[data-consent=denied]').count())await p.click('[data-consent=denied]');
  const counts=await p.evaluate(()=>({rw:BANK.filter(q=>q.subject==='Reading and Writing').length,math:BANK.filter(q=>q.subject==='Math').length,missing:BANK.filter(q=>!window.SKILL_VIDEOS[q.skill]).map(q=>q.skill),numeric:BANK.filter(q=>q.type==='numeric').length}));

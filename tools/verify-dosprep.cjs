@@ -1,29 +1,31 @@
 let playwright;try{playwright=require('playwright');}catch{playwright=require('./browser-check/node_modules/playwright');}
 const assert=require('node:assert/strict');
+const base=process.env.DOSPREP_URL||'http://127.0.0.1:8767';
 (async()=>{
 const browser=await playwright.chromium.launch({executablePath:process.env.CHROMIUM_EXECUTABLE||undefined});
 const context=await browser.newContext({viewport:{width:1380,height:950}});const p=await context.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));
-const config={firebase:{apiKey:'fake-api-key',projectId:'demo-dosprep',authDomain:'demo-dosprep.firebaseapp.com',appId:'1:123456789:web:demo'},authEmulator:true,measurementId:'G-DOSPREPTEST'};
+const config={firebase:{apiKey:'fake-api-key',projectId:'demo-dosprep',authDomain:'demo-dosprep.firebaseapp.com',appId:'1:123456789:web:demo'},authEmulator:true,liveEmulator:true,measurementId:'G-DOSPREPTEST'};
 await p.route('**/site-config.js',r=>r.fulfill({contentType:'text/javascript',body:'window.DOSPREP_CONFIG='+JSON.stringify(config)+';'}));
 let tagRequests=0;await p.route('https://www.googletagmanager.com/**',r=>{tagRequests++;return r.fulfill({contentType:'text/javascript',body:''});});
-await p.goto('http://127.0.0.1:8767/');assert.match(await p.title(),/DosPrep/);assert.equal(await p.locator('h1').count(),1);assert.ok(await p.locator('meta[name=description]').getAttribute('content'));assert.equal(await p.locator('script[src="questions.js"]').count(),0);assert.equal(tagRequests,0);
+await p.addInitScript(()=>{window.DOSPREP_TEST_MODE=true;});
+await p.goto(base+'/');assert.match(await p.title(),/DosPrep/);assert.equal(await p.locator('h1').count(),1);assert.ok(await p.locator('meta[name=description]').getAttribute('content'));assert.equal(await p.locator('script[src="questions.js"]').count(),0);assert.equal(tagRequests,0);
 await p.click('[data-consent=granted]');await p.waitForFunction(()=>window.dataLayer?.length>=3);
 await p.evaluate(()=>DosPrepAnalytics.track('practice_start',{subject:'Math',pace:'Steady',question_count:10,email:'do-not-send@example.test',answer:'secret'}));
 const event=await p.evaluate(()=>Array.from(dataLayer.at(-1)));assert.equal(event[0],'event');assert.deepEqual(event[2],{subject:'Math',pace:'Steady',question_count:10});
 await p.screenshot({path:'tmp/dosprep-home.png',fullPage:true});
 await p.evaluate(()=>{localStorage.setItem('reading-rush-v1',JSON.stringify({history:[],flags:['guest-only'],highlights:{}}));});
-await p.goto('http://127.0.0.1:8767/signin.html');await p.waitForFunction(()=>!document.getElementById('google-signin').disabled,{timeout:30000});
+await p.goto(base+'/signin.html');await p.waitForFunction(()=>!document.getElementById('google-signin').disabled,{timeout:30000});
 await p.screenshot({path:'tmp/dosprep-signin.png',fullPage:true});
 await p.click('#toggle-auth');const email='dosprep-test-'+Date.now()+'@example.test';await p.fill('#email',email);await p.fill('#password','Correct-Horse-123!');await p.click('#submit-auth');
 await p.waitForURL('**/practice.html');await p.waitForFunction(()=>window.DosPrepAuth?.user?.uid&&activeAccountId===DosPrepAuth.user.uid);
 assert.deepEqual(await p.evaluate(()=>saved.flags),[]);
 await p.evaluate(()=>{saved.flags=['account-only'];persist();});
 await p.locator('[data-signout]').first().click();await p.waitForFunction(()=>!DosPrepAuth.user&&activeAccountId===null);assert.deepEqual(await p.evaluate(()=>saved.flags),['guest-only']);
-await p.goto('http://127.0.0.1:8767/signin.html');await p.waitForFunction(()=>!document.getElementById('submit-auth').disabled);
+await p.goto(base+'/signin.html');await p.waitForFunction(()=>!document.getElementById('submit-auth').disabled);
 await p.fill('#email',email);await p.fill('#password','wrong-password');await p.click('#submit-auth');await p.waitForFunction(()=>document.getElementById('auth-status').classList.contains('error'));assert.equal(new URL(p.url()).pathname,'/signin.html');
 await p.fill('#password','Correct-Horse-123!');await p.click('#submit-auth');await p.waitForURL('**/practice.html');await p.waitForFunction(()=>activeAccountId===DosPrepAuth.user?.uid);assert.deepEqual(await p.evaluate(()=>saved.flags),['account-only']);
 await p.locator('[data-signout]').first().click();await p.waitForFunction(()=>!DosPrepAuth.user);
-await p.goto('http://127.0.0.1:8767/signin.html');await p.waitForFunction(()=>!document.getElementById('reset-password').disabled);await p.fill('#email',email);await p.click('#reset-password');await p.waitForFunction(()=>document.getElementById('auth-status').textContent.includes('reset instructions are on the way'));
+await p.goto(base+'/signin.html');await p.waitForFunction(()=>!document.getElementById('reset-password').disabled);await p.fill('#email',email);await p.click('#reset-password');await p.waitForFunction(()=>document.getElementById('auth-status').textContent.includes('reset instructions are on the way'));
 await p.setViewportSize({width:390,height:844});await p.screenshot({path:'tmp/dosprep-signin-mobile.png',fullPage:true});assert.equal(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
 assert.deepEqual(errors,[]);console.log('PASS: static SEO homepage, metadata, consent-gated GA loading, sanitized analytics payloads, Firebase Auth emulator signup/signin/wrong-password/reset/signout, account/guest progress separation, mobile sign-in. Production Firebase/Google OAuth still require account setup.');
 await browser.close();

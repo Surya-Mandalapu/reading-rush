@@ -93,6 +93,103 @@ service cloud.firestore {
     allow delete: if signed() && owner(room(code)) && room(code).state == 'finished';
    }
   }
+  // Community contributions: private idempotency markers, public aggregate data.
+  function counterPath(){ return /databases/$(database)/documents/siteStats/answers; }
+  function pointerPath(){ return /databases/$(database)/documents/contributors/$(request.auth.uid); }
+  function eventPath(eventId){ return /databases/$(database)/documents/answerContributions/$(eventId); }
+  function participantPath(uid,q){ return /databases/$(database)/documents/timingParticipants/$(uid)/questions/$(q); }
+  function statPath(q,group){ return /databases/$(database)/documents/questionStats/$(q)/groups/$(group); }
+  function validContribution(d){
+   return d.keys().hasAll(['uid','questionId','mode','eligible','seconds','correct','createdAt'])
+    && d.keys().hasOnly(['uid','questionId','mode','eligible','seconds','correct','createdAt'])
+    && d.uid == request.auth.uid && d.questionId is string && d.questionId.matches('^[a-f0-9]{8}$')
+    && d.mode in ['solo','live'] && d.eligible is bool && d.correct is bool && d.seconds is int
+    && d.createdAt == request.time
+    && ((d.eligible && d.mode == 'solo' && d.seconds >= 1 && d.seconds <= 7200) || (!d.eligible && d.seconds == 0 && d.correct == false));
+  }
+  function newEvent(){
+   let id = getAfter(pointerPath()).data.lastEvent;
+   return getAfter(eventPath(id)).data;
+  }
+  function hasNewEvent(){
+   let pointer = getAfter(pointerPath()).data;
+   return pointer.updatedAt == request.time && pointer.lastEvent is string
+    && pointer.lastEvent.matches('^[A-Za-z0-9_-]{1,180}$')
+    && !exists(eventPath(pointer.lastEvent)) && validContribution(getAfter(eventPath(pointer.lastEvent)).data);
+  }
+  function oldStats(q,group){ return exists(statPath(q,group)) ? get(statPath(q,group)).data : {'samples':0,'totalSeconds':0,'bins':{}}; }
+  function validStats(d){
+   return d.keys().hasAll(['samples','totalSeconds','bins','updatedAt']) && d.keys().hasOnly(['samples','totalSeconds','bins','updatedAt'])
+    && d.samples is int && d.samples >= 1 && d.samples <= 1000000000
+    && d.totalSeconds is int && d.totalSeconds >= d.samples && d.totalSeconds <= d.samples*7200
+    && d.bins is map && d.bins.size() <= 7200 && d.updatedAt == request.time;
+  }
+  function timingPaired(d,eventId){
+   let group = d.correct ? 'correct' : 'incorrect';
+   return !exists(participantPath(d.uid,d.questionId))
+    && getAfter(participantPath(d.uid,d.questionId)).data.eventId == eventId
+    && getAfter(statPath(d.questionId,'all')).data.samples == oldStats(d.questionId,'all').samples+1
+    && getAfter(statPath(d.questionId,group)).data.samples == oldStats(d.questionId,group).samples+1;
+  }
+  function validCounter(d){
+   return d.keys().hasAll(['count','solo','live','startedAt','updatedAt']) && d.keys().hasOnly(['count','solo','live','startedAt','updatedAt'])
+    && d.count is int && d.solo is int && d.live is int && d.count >= 0 && d.solo >= 0 && d.live >= 0
+    && d.count == d.solo+d.live && d.startedAt is timestamp && d.updatedAt == request.time;
+  }
+  match /siteStats/answers {
+   allow get: if signed();
+   allow list: if false;
+   allow create: if signed() && validCounter(request.resource.data) && request.resource.data.count == 0
+    && request.resource.data.solo == 0 && request.resource.data.live == 0 && request.resource.data.startedAt == request.time;
+   allow update: if signed() && validCounter(request.resource.data) && hasNewEvent()
+    && request.resource.data.startedAt == resource.data.startedAt && request.resource.data.count == resource.data.count+1
+    && request.resource.data.solo == resource.data.solo+(newEvent().mode == 'solo' ? 1 : 0)
+    && request.resource.data.live == resource.data.live+(newEvent().mode == 'live' ? 1 : 0);
+   allow delete: if false;
+  }
+  match /answerContributions/{eventId} {
+   allow get: if signed() && (resource == null || resource.data.uid == request.auth.uid);
+   allow list: if false;
+   allow create: if signed() && eventId.matches('^[A-Za-z0-9_-]{1,180}$') && validContribution(request.resource.data)
+    && getAfter(pointerPath()).data.lastEvent == eventId
+    && getAfter(counterPath()).data.count == get(counterPath()).data.count+1
+    && (exists(participantPath(request.auth.uid,request.resource.data.questionId)) || getAfter(participantPath(request.auth.uid,request.resource.data.questionId)).data.eventId == eventId)
+    && (!request.resource.data.eligible || timingPaired(request.resource.data,eventId));
+   allow update, delete: if false;
+  }
+  match /contributors/{uid} {
+   function validPointer(d){ return d.keys().hasAll(['lastEvent','updatedAt']) && d.keys().hasOnly(['lastEvent','updatedAt'])
+    && d.lastEvent is string && d.lastEvent.matches('^[A-Za-z0-9_-]{1,180}$') && d.updatedAt == request.time; }
+   allow get: if signed() && uid == request.auth.uid;
+   allow list: if false;
+   allow create, update: if signed() && uid == request.auth.uid && validPointer(request.resource.data) && hasNewEvent();
+   allow delete: if false;
+  }
+  match /timingParticipants/{uid}/questions/{questionId} {
+   function validParticipant(d){ return d.keys().hasAll(['eventId','createdAt']) && d.keys().hasOnly(['eventId','createdAt'])
+    && d.eventId is string && d.eventId.matches('^[A-Za-z0-9_-]{1,180}$') && d.createdAt == request.time; }
+   allow get: if signed() && uid == request.auth.uid;
+   allow list: if false;
+   allow create: if signed() && uid == request.auth.uid && questionId.matches('^[a-f0-9]{8}$')
+    && validParticipant(request.resource.data) && hasNewEvent() && newEvent().questionId == questionId
+    && request.resource.data.eventId == getAfter(pointerPath()).data.lastEvent;
+   allow update, delete: if false;
+  }
+  match /questionStats/{questionId}/groups/{group} {
+   function validIncrement(d){
+    let event = newEvent();
+    let old = oldStats(questionId,group);
+    let key = string(event.seconds);
+    return event.eligible && event.questionId == questionId && (group == 'all' || group == (event.correct ? 'correct' : 'incorrect'))
+     && validStats(d) && d.samples == old.samples+1 && d.totalSeconds == old.totalSeconds+event.seconds
+     && d.bins.diff(old.bins).affectedKeys().hasOnly([key]) && d.bins.keys().hasAll(old.bins.keys())
+     && d.bins[key] is int && d.bins[key] == old.bins.get(key,0)+1;
+   }
+   allow get: if signed() && questionId.matches('^[a-f0-9]{8}$') && group in ['all','correct','incorrect'];
+   allow list: if false;
+   allow create, update: if signed() && group in ['all','correct','incorrect'] && hasNewEvent() && validIncrement(request.resource.data);
+   allow delete: if false;
+  }
   match /{document=**} { allow read, write: if false; }
  }
 }

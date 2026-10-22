@@ -5,6 +5,8 @@ const assert=require('node:assert/strict');
  try{
   const page=await browser.newPage({viewport:{width:1920,height:1080},reducedMotion:'reduce'}),errors=[];
   page.on('pageerror',error=>errors.push(error.message));
+  await page.addInitScript(()=>{window.DOSPREP_TEST_MODE=true;});
+ if(['localhost','127.0.0.1'].includes(new URL(process.env.READING_RUSH_URL||'http://127.0.0.1:8767/practice.html').hostname))await page.route('**/site-config.js',r=>r.fulfill({contentType:'application/javascript',body:require('node:fs').readFileSync('app/site-config.js','utf8')+'\nwindow.DOSPREP_CONFIG={...window.DOSPREP_CONFIG,liveEmulator:true,authEmulator:true};'}));
   await page.goto(process.env.READING_RUSH_URL||'http://127.0.0.1:8873/practice.html');
   if(await page.locator('[data-consent=denied]').count())await page.click('[data-consent=denied]');
   await page.click('[data-action=start]');await page.waitForFunction(()=>session.questionStarted!==null);
