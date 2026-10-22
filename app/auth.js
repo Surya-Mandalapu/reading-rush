@@ -17,7 +17,7 @@
    sdk=authModule;const app=appModule.getApps().length?appModule.getApp():appModule.initializeApp(config);auth=sdk.getAuth(app);
    if(window.DOSPREP_CONFIG?.authEmulator&&['localhost','127.0.0.1'].includes(location.hostname))sdk.connectAuthEmulator(auth,'http://127.0.0.1:9099',{disableWarnings:true});
    await sdk.setPersistence(auth,sdk.browserLocalPersistence);
-   sdk.onAuthStateChanged(auth,next=>{const redirectExisting=firstAuthState&&Boolean(next);firstAuthState=false;user=next;unavailable=false;setBusy(false);emit();if(redirectExisting&&document.getElementById('auth-form'))location.replace('practice.html');});
+   sdk.onAuthStateChanged(auth,next=>{const redirectExisting=firstAuthState&&Boolean(next&&!next.isAnonymous);firstAuthState=false;user=next&&!next.isAnonymous?next:null;unavailable=false;setBusy(false);emit();if(redirectExisting&&document.getElementById('auth-form'))location.replace('practice.html');});
    unavailable=false;message('');setBusy(false);
   }catch{unavailable=true;message('Sign-in is temporarily unavailable. You can continue practicing on this device.',true);setBusy(false);emit();}
  }

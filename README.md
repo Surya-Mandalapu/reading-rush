@@ -32,6 +32,16 @@ Custom pace targets: Reading and Writing uses 120 / 75 / 45 seconds for Relaxed 
 
 Double-click **Start Reading Rush.cmd** and leave the terminal open. Requires Python. Alternatively run `python -m http.server 8765 --bind 127.0.0.1 --directory app` from this folder, then visit http://127.0.0.1:8765. Local and hosted progress are separate; use export/restore to move progress.
 
+## Live Quiz
+
+Open `live.html` to host or join by a six-character code. Hosts choose Reading and Writing or Math, a category, and 5/10/20 questions. Up to 20 players join with nicknames; the host can spectate or answer too. Joining closes when the quiz starts. Everyone sees the same question, submits one private answer, and automatically sees all answers when everyone submits. Only the author can read a response before reveal, including against direct database requests; the host may explicitly reveal early for absent players. The host advances questions. Correct responses earn 100 points, with no time limit or speed bonus. Numeric answers accept equivalent decimals/fractions.
+
+Rooms use Firebase anonymous or existing account authentication and the Firestore Enterprise Native database `dosprep-rooms` in `us-west1`. Snapshot listeners are necessary for synchronized room updates, so this uses the standard realtime SDK rather than pipelines. Live answers are separate from solo history. Anonymous room identities preserve the existing solo guest progress store. Refreshing reconnects a participant or host; if the host disconnects, players can still finish answering and trigger the reveal, then wait for the host to return and advance. Hosts can reveal early or end a quiz to handle absent participants.
+
+Room access expires after approximately 23 hours. Hosts can delete all documents and answers from a finished room, including rooms ended early. Expiry restricts access and does not erase stored documents automatically. `firestore.rules` defaults to deny, validates bounded documents, restricts host transitions, and requires each immutable response to be written atomically with its public submission status. These prototype rules should be reviewed before broad public use. The public question library already contains answer keys; this is a study game, with no claim to prevent clients inspecting that library.
+
+Deploy backend rules with `firebase deploy --only firestore --project dosprep-study-a7f31`. For a fresh project, create the named database first with `firebase firestore:databases:create dosprep-rooms --edition enterprise --location us-west1 --firestore-data-access ENABLED --mongodb-compatible-data-access DISABLED --realtime-updates ENABLED`; realtime updates must be explicitly enabled at creation. Anonymous auth is declared in `firebase.json`; deploy provider changes with `--only auth`. For local tests, start Auth and Firestore emulators, serve `app/`, and run `node tools/verify-live-quiz.cjs`. The test connects only localhost to emulators and uses separate browser contexts to verify privacy, synchronized rounds, reconnects, grading, and cleanup. Production smoke checks require explicit `LIVE_QUIZ_REAL=1` and `LIVE_QUIZ_URL`; disposable test rooms/accounts are deleted afterward.
+
 ## Import more questions
 
 Install dependencies with `python -m pip install pymupdf Pillow`, then run:

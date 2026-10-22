@@ -1,5 +1,6 @@
 {
   "emulators": {
+    "firestore": { "port": 8080, "edition": "enterprise" },
     "auth": {
       "port": 9099
     },
@@ -8,8 +9,17 @@
     },
     "singleProjectMode": true
   },
+  "firestore": {
+    "database": "dosprep-rooms",
+    "edition": "enterprise",
+    "dataAccessMode": "FIRESTORE_NATIVE",
+    "location": "us-west1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "auth": {
     "providers": {
+      "anonymous": true,
       "emailPassword": true,
       "googleSignIn": {
         "oAuthBrandDisplayName": "DosPrep",

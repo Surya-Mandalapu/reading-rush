@@ -1,0 +1,98 @@
+rules_version = '2';
+// rooms/{code}: immutable owner/subject/questionIds/createdAt/expiresAt;
+// state, round, memberIds, roundPlayers and answeredIds drive the game.
+// players/{uid}: immutable name (1..24) and joinedAt.
+// rounds/{round}/answers/{uid}: immutable uid, round, answer (1..80), submittedAt.
+service cloud.firestore {
+ match /databases/{database}/documents {
+  function signed(){ return request.auth != null; }
+  function fresh(r){ return r.expiresAt > request.time; }
+  function owner(r){ return signed() && request.auth.uid == r.owner; }
+  function member(r){ return signed() && request.auth.uid in r.memberIds; }
+  function access(r){ return owner(r) || (member(r) && fresh(r)); }
+  function room(code){ return get(/databases/$(database)/documents/rooms/$(code)).data; }
+  function afterRoom(code){ return getAfter(/databases/$(database)/documents/rooms/$(code)).data; }
+  function validRoom(r){
+   return r.keys().hasAll(['owner','subject','questionIds','state','round','memberIds','roundPlayers','answeredIds','createdAt','expiresAt'])
+    && r.keys().hasOnly(['owner','subject','questionIds','state','round','memberIds','roundPlayers','answeredIds','createdAt','expiresAt'])
+    && r.owner is string && r.owner.size() > 0 && r.owner.size() <= 128
+    && r.subject in ['Reading and Writing','Math']
+    && r.questionIds is list && r.questionIds.size() >= 1 && r.questionIds.size() <= 20
+    && r.questionIds.join(',').matches('^[a-f0-9]{8}(,[a-f0-9]{8})*$') && r.questionIds.join(',').size() <= 179
+    && r.state in ['lobby','question','reveal','finished']
+    && r.round is int && r.round >= 0 && r.round < r.questionIds.size()
+    && r.memberIds is list && r.memberIds.size() <= 20 && r.memberIds.toSet().size() == r.memberIds.size()
+    && r.roundPlayers is list && r.memberIds.hasAll(r.roundPlayers) && r.roundPlayers.toSet().size() == r.roundPlayers.size()
+    && r.answeredIds is list && r.roundPlayers.hasAll(r.answeredIds) && r.answeredIds.toSet().size() == r.answeredIds.size()
+    && r.createdAt is timestamp && r.expiresAt is timestamp && r.expiresAt > r.createdAt;
+  }
+  function validPlayer(p){ return p.keys().hasAll(['name','joinedAt']) && p.keys().hasOnly(['name','joinedAt']) && p.name is string && p.name.size() >= 1 && p.name.size() <= 24 && p.joinedAt is timestamp; }
+  function validAnswer(a){
+   return a.keys().hasAll(['uid','round','answer','submittedAt']) && a.keys().hasOnly(['uid','round','answer','submittedAt'])
+    && a.uid is string && a.uid == request.auth.uid && a.round is int
+    && a.answer is string && a.answer.size() >= 1 && a.answer.size() <= 80 && a.submittedAt is timestamp;
+  }
+  match /rooms/{code} {
+   allow get: if signed() && (resource == null || owner(resource.data) || (fresh(resource.data) && (resource.data.state == 'lobby' || member(resource.data))));
+   allow list: if false;
+   allow create: if signed() && code.matches('^[A-HJ-NP-Z2-9]{6}$') && validRoom(request.resource.data)
+    && request.resource.data.owner == request.auth.uid && request.resource.data.state == 'lobby'
+    && request.resource.data.round == 0 && request.resource.data.roundPlayers.size() == 0 && request.resource.data.answeredIds.size() == 0
+    && (request.resource.data.memberIds.size() == 0 || (request.resource.data.memberIds == [request.auth.uid] && existsAfter(/databases/$(database)/documents/rooms/$(code)/players/$(request.auth.uid))))
+    && request.resource.data.createdAt == request.time && request.resource.data.expiresAt <= request.time + duration.value(24,'h');
+   function joining(old,n){
+    return old.state == 'lobby' && fresh(old) && n.diff(old).affectedKeys().hasOnly(['memberIds'])
+     && !(request.auth.uid in old.memberIds) && request.auth.uid in n.memberIds
+     && n.memberIds.hasAll(old.memberIds) && n.memberIds.size() == old.memberIds.size()+1
+     && existsAfter(/databases/$(database)/documents/rooms/$(code)/players/$(request.auth.uid));
+   }
+   function leaving(old,n){
+    return old.state == 'lobby' && n.diff(old).affectedKeys().hasOnly(['memberIds'])
+     && request.auth.uid in old.memberIds && !(request.auth.uid in n.memberIds)
+     && old.memberIds.hasAll(n.memberIds) && n.memberIds.size() == old.memberIds.size()-1
+     && !existsAfter(/databases/$(database)/documents/rooms/$(code)/players/$(request.auth.uid));
+   }
+   function submitting(old,n){
+    return old.state == 'question' && fresh(old) && request.auth.uid in old.roundPlayers
+     && !(request.auth.uid in old.answeredIds) && n.diff(old).affectedKeys().hasOnly(['answeredIds'])
+     && n.answeredIds.hasAll(old.answeredIds) && request.auth.uid in n.answeredIds && n.answeredIds.size() == old.answeredIds.size()+1
+     && existsAfter(/databases/$(database)/documents/rooms/$(code)/rounds/$(string(old.round))/answers/$(request.auth.uid));
+   }
+   function revealing(old,n){
+    return old.state == 'question' && n.state == 'reveal' && n.diff(old).affectedKeys().hasOnly(['state'])
+     && (owner(old) || (member(old) && fresh(old) && old.roundPlayers.size() > 0 && old.answeredIds.hasAll(old.roundPlayers)));
+   }
+   function hosting(old,n){
+    return owner(old) && (
+     (n.state == 'finished' && n.diff(old).affectedKeys().hasOnly(['state']))
+     || (fresh(old) && (
+      (old.state == 'lobby' && n.state == 'lobby' && n.diff(old).affectedKeys().hasOnly(['memberIds']) && old.memberIds.hasAll(n.memberIds))
+      || (old.state == 'lobby' && n.state == 'question' && n.round == 0 && n.memberIds.size() > 0 && n.roundPlayers == n.memberIds && n.answeredIds.size() == 0 && n.diff(old).affectedKeys().hasOnly(['state','roundPlayers','answeredIds']))
+      || (old.state == 'reveal' && n.state == 'question' && n.round == old.round+1 && n.roundPlayers == n.memberIds && n.answeredIds.size() == 0 && n.diff(old).affectedKeys().hasOnly(['state','round','roundPlayers','answeredIds']))
+     ))
+    );
+   }
+   allow update: if signed() && validRoom(request.resource.data)
+    && (joining(resource.data,request.resource.data) || leaving(resource.data,request.resource.data) || submitting(resource.data,request.resource.data) || revealing(resource.data,request.resource.data) || hosting(resource.data,request.resource.data));
+   allow delete: if owner(resource.data) && resource.data.state == 'finished';
+   match /players/{uid} {
+    allow read: if signed() && access(room(code));
+    allow create: if signed() && request.auth.uid == uid && validPlayer(request.resource.data)
+     && request.resource.data.joinedAt == request.time && fresh(afterRoom(code)) && afterRoom(code).state == 'lobby' && uid in afterRoom(code).memberIds;
+    allow update: if false;
+    allow delete: if signed() && (request.auth.uid == uid || owner(room(code)))
+     && ((room(code).state == 'lobby' && !(uid in afterRoom(code).memberIds)) || (owner(room(code)) && room(code).state == 'finished'));
+   }
+   match /rounds/{round}/answers/{uid} {
+    allow read: if signed() && access(room(code)) && (request.auth.uid == uid || int(round) < room(code).round || (int(round) == room(code).round && room(code).state in ['reveal','finished']));
+    allow create: if signed() && validAnswer(request.resource.data) && request.auth.uid == uid
+     && room(code).state == 'question' && fresh(room(code)) && uid in room(code).roundPlayers
+     && round == string(room(code).round) && request.resource.data.round == room(code).round
+     && request.resource.data.submittedAt == request.time && !(uid in room(code).answeredIds) && uid in afterRoom(code).answeredIds;
+    allow update: if false;
+    allow delete: if signed() && owner(room(code)) && room(code).state == 'finished';
+   }
+  }
+  match /{document=**} { allow read, write: if false; }
+ }
+}

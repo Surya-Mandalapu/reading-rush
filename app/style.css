@@ -93,3 +93,5 @@ body:has(.pause-dialog[open]){overflow:hidden}
 .missed-question-list button>span:nth-child(2){font-size:14px;line-height:1.5}
 .missed-question-list small,.history-perfect{font-size:13px}
 @media(max-width:620px){.missed-question-list{grid-template-columns:minmax(0,1fr)}}
+.live-mode-link{display:inline-block;text-decoration:none;background:#e9f6f3;border:1px solid #cfe4de;color:var(--teal);border-radius:10px;padding:12px;font-size:14px;font-weight:700;line-height:1.5}
+@media(max-width:620px){.landing-nav nav .cta{display:none}}
