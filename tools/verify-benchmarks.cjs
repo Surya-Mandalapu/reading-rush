@@ -45,7 +45,9 @@ const base=process.env.BENCHMARK_URL||'http://127.0.0.1:8876/practice.html';
   await page.click('[data-benchmark-group=correct]');await page.waitForFunction(()=>document.querySelector('.benchmark-sample-note')?.textContent.includes('10 / 20'));assert.equal(await page.locator('.benchmark-metrics').count(),0);
   await page.click('[data-benchmark-group=incorrect]');await page.waitForFunction(()=>document.querySelector('.benchmark-sample-note')?.textContent.includes('10 / 20'));
   await page.click('[data-benchmark-group=all]');await page.waitForSelector('.benchmark-metrics');await page.screenshot({path:'tmp/question-benchmarks.png',fullPage:true});
-  console.log('20-identity sample threshold, histogram median/mean/quartiles, outcome groups passed');
+  assert.equal(await page.locator('.your-time-comparison').count(),1);
+  assert.match(await page.locator('.your-time-comparison').innerText(),/slower than the median/);
+  console.log('20-identity sample threshold, histogram median/mean/quartiles, outcome groups and personal comparison passed');
   const checks=await page.evaluate(async({question,foreign})=>{
    const f=await import('https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js'),a=await import('https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js');const db=f.getFirestore(undefined,'dosprep-rooms');
    async function attempt(action){try{await action();return true;}catch(error){if(error.code!=='permission-denied')throw error;return false;}}
@@ -67,6 +69,18 @@ const base=process.env.BENCHMARK_URL||'http://127.0.0.1:8876/practice.html';
   await page.evaluate(()=>DosPrepAnswerEvents.setConsent('denied'));assert.ok(await page.evaluate(()=>JSON.parse(localStorage.getItem('dosprep-answer-queue')).every(e=>e.seconds===0&&e.correct===false)));
   await context.setOffline(false);await waitCount(24);assert.equal(await data(`questionStats/${unseen}/groups/all`),null);assert.equal((await data('siteStats/answers')).live,1);
   const simultaneous=await page.evaluate(()=>Promise.all([20,21,22].map(i=>window.seedTiming(i))));assert.ok(simultaneous.every(r=>r.allowed),JSON.stringify(simultaneous));await waitCount(27);
+  await page.evaluate(({question,unseen})=>{const answer={id:question,seconds:25,correct:true,stars:1,skill:BANK.find(q=>q.id===question).skill,difficulty:'Hard'};showResults({id:'comparison-test',date:new Date().toISOString(),pace:'Steady',subject:'Reading and Writing',best:1,answers:[answer,{...answer,id:unseen,seconds:8}],planned:2});},{question,unseen});
+  await page.waitForSelector('dosprep-question-benchmarks[compact] .your-time-comparison');
+  const compact=page.locator('dosprep-question-benchmarks[compact]');
+  assert.equal(await compact.nth(0).locator('.pacing-fallback').count(),0);
+  assert.match(await compact.nth(0).innerText(),/0:25/);assert.match(await compact.nth(0).innerText(),/slower than the median/);
+  assert.equal(await compact.nth(1).locator('.pacing-fallback').count(),1);
+  await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  await page.screenshot({path:'tmp/pacing-comparison-mobile.png',fullPage:true});
+  await page.evaluate(()=>showReview(0));await page.waitForSelector('.your-time-comparison');assert.match(await page.locator('.your-time-comparison').innerText(),/0:25/);
+  // The comparison describes faster, slower and equal times without changing stored data.
+  const variants=await page.evaluate(()=>{const el=document.querySelector('dosprep-question-benchmarks'),stats={samples:20,median:25,mean:25,p25:20,p75:30};return [10,25,40].map(seconds=>{el.setAttribute('your-seconds',seconds);el.render(stats);return el.querySelector('.your-time-comparison p').textContent;});});
+  assert.deepEqual(variants,['0:15 faster than the median.','You matched the median time.','0:15 slower than the median.']);
   await page.goto(base.replace('practice.html','index.html'));await page.waitForSelector('dosprep-site-count[data-loaded=true]');assert.equal(await page.locator('dosprep-site-count').innerText(),'27');await page.setViewportSize({width:390,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:'tmp/community-answer-count-mobile.png',fullPage:true});
   assert.deepEqual(errors,[]);console.log('PASS: no opt-in by default, real practice event wiring, pause/visibility exclusion, 20-sample gating, correctness groups, exact whole-second quantiles, guarded concurrent aggregates, private raw markers, deduplication, live/solo counts, repeat-sample exclusion, offline consent withdrawal, homepage total/mobile.');
  }finally{await browser.close();}
