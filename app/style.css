@@ -80,3 +80,16 @@
 .pause-dialog p{color:var(--muted);margin-bottom:25px}
 body:has(.pause-dialog[open]){overflow:hidden}
 @media(max-width:620px){.timer-controls{gap:6px}.timer-controls>button{padding:9px 8px;font-size:12px}.study-top{gap:6px}.study-status{display:none}.study-footer .muted{max-width:90px}.overtime-note{font-size:14px}}
+
+.history-session{padding:4px 0 22px;border-bottom:1px solid var(--line)}
+.history-session:last-child{border-bottom:0;padding-bottom:0}
+.history-session .history-row{border-bottom:0;flex-wrap:wrap}
+.missed-questions summary{cursor:pointer;color:var(--teal);font-size:16px;font-weight:700;padding:10px 0}
+.missed-questions>p{font-size:14px;margin:5px 0 15px}
+.missed-question-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.missed-question-list button{display:grid;text-align:left;gap:8px;overflow-wrap:anywhere}
+.question-id{display:block;font-family:ui-monospace,Consolas,monospace;font-size:14px;font-weight:700;letter-spacing:.2px;margin-top:10px;color:#334f53}
+.missed-question-list .question-id{margin-top:0}
+.missed-question-list button>span:nth-child(2){font-size:14px;line-height:1.5}
+.missed-question-list small,.history-perfect{font-size:13px}
+@media(max-width:620px){.missed-question-list{grid-template-columns:minmax(0,1fr)}}
