@@ -12,7 +12,7 @@ For Firebase/GA4 activation and SEO configuration, see [SETUP.md](SETUP.md). Fir
 
 Choose a subject, category, skills, question count, and pace. Sessions use each matching question once. Practice from the full library, previous mistakes, or marked questions; optionally skip previously attempted questions. Typed Math answers accept numbers, decimals, fractions, and equivalent numeric values. Where the official export gives multiple accepted responses, those responses are preserved. Invalid numeric input is rejected.
 
-Incorrect answers and timeouts do **not** reveal the right answer or highlight the correct choice. Click **Reveal answer & explanation** when ready. The same rule applies when reviewing a missed question after a round. Correct answers can display the explanation directly on request.
+Incorrect answers do **not** reveal the right answer or highlight the correct choice. Choose **Try again** for another attempt, or **Reveal answer & explanation** when ready. Revealing during a retry lets you continue to the next question. Accuracy and stars retain the first attempt; retries and their outcomes are saved for review. Missed answers also stay hidden in session review until explicitly revealed.
 
 Select passage text with the mouse (or text selection on touch), then choose **Highlight selection**. Highlights persist for each question, including in review. **Clear highlights** removes that question's highlights. Question visuals retain the original PDF typography, equations, and diagrams; the invisible selection layer supports normal PDF text, but equations rendered as graphics cannot be selected. Some source PDF text has imperfect character encoding; the visible question remains the original rendered page.
 
@@ -24,9 +24,9 @@ Each of the 29 skills has **one to three reusable video lessons**, linked from p
 
 ## Storage and timing
 
-Progress, flags, and highlights stay in this browser's local storage on this origin. Export a backup before clearing browser data or changing browsers. Export/restore includes highlights. Unfinished sessions are not saved if the tab closes; completed and early-ended sessions are saved. The timer waits for initial question images to load, continues in the background, and stops for feedback. Results time sums answer times.
+Progress, flags, and highlights stay in this browser's local storage on this origin. Export a backup before clearing browser data or changing browsers. Export/restore includes highlights. Unfinished sessions are not saved if the tab closes; completed and early-ended sessions are saved. The timer waits for initial question images and the opening countdown, continues in the background, and stops for feedback. **Pause** hides the question and stops timing until **Resume** (or Escape). Results time includes retries and excludes pauses and feedback time.
 
-Custom pace settings: Reading and Writing uses 120 / 75 / 45 seconds for Relaxed / Steady / Blitz. Math uses 150 / 95 / 60 seconds. Correct responses earn 3 stars in the first third of the allowance, 2 in the second third, and 1 in the final third. Timeouts earn zero. These are independent rules, not verified OnePrep scoring formulas.
+Custom pace targets: Reading and Writing uses 120 / 75 / 45 seconds for Relaxed / Steady / Blitz. Math uses 150 / 95 / 60 seconds. The timer continues into overtime without submitting or locking the question. Correct first responses earn 3 stars in the first third of the target, 2 in the second third, and 1 in the final third. Overtime responses and retries earn zero stars. These are independent rules, not verified OnePrep scoring formulas. Historical timeout records remain supported.
 
 ## Local launch
 

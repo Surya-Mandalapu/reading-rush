@@ -64,3 +64,19 @@
 .category-check{display:grid;place-items:center;flex-shrink:0;width:20px;height:20px;border:1px solid #a6bcb9;border-radius:5px;margin-top:2px;font-size:14px}
 [aria-pressed="true"]>.category-check{background:var(--teal);border-color:var(--teal);color:white}
 @media(max-width:620px){.category-options{grid-template-columns:minmax(0,1fr)}}
+
+/* Blend the PDF's white canvas into answer feedback colors. */
+.choice{isolation:isolate}
+.choice .pdf-img{mix-blend-mode:multiply}
+.choice:disabled{opacity:1}
+.choice.eliminated:disabled{opacity:.35}
+.timer-controls{display:flex;align-items:center;gap:12px}
+.timer-controls>button{font-size:15px;white-space:nowrap}
+.timer.overtime{background:#fff1db;color:#8a5100}
+.overtime-note{padding:14px 18px;border:1px solid #f1d7a4;border-radius:12px;background:#fff7e7;color:#81510c;font-size:16px}
+.pause-dialog{border:1px solid var(--line);border-radius:20px;padding:36px;max-width:440px;width:calc(100% - 40px);text-align:center;color:#182b31;box-shadow:0 20px 90px #143c3229}
+.pause-dialog::backdrop{background:#eef5f5;backdrop-filter:blur(12px)}
+.pause-dialog h2{margin:0 0 12px;font-size:28px}
+.pause-dialog p{color:var(--muted);margin-bottom:25px}
+body:has(.pause-dialog[open]){overflow:hidden}
+@media(max-width:620px){.timer-controls{gap:6px}.timer-controls>button{padding:9px 8px;font-size:12px}.study-top{gap:6px}.study-status{display:none}.study-footer .muted{max-width:90px}.overtime-note{font-size:14px}}
