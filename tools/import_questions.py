@@ -2,6 +2,8 @@
 import json, re, sys, os
 from pathlib import Path
 from collections import Counter
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 import pymupdf
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'app'
@@ -10,13 +12,33 @@ ASSETS.mkdir(parents=True,exist_ok=True)
 path=OUT/'questions.js'
 existing=json.loads(path.read_text(encoding='utf-8').removeprefix('window.QUESTIONS = ').rstrip(';\n')) if path.exists() else []
 merged={q['id']:q for q in existing}
+# This export prints the fourth option as an indented bullet without its D label.
+# The official rationale explicitly discusses this sentence as Choice D.
+UNLABELED_FOURTH={'e3bbf2bf':'The Choctaw Code Talkers, not the Navajo Code Talkers,'}
+SKILL_ALIASES={'Cross-text Connections':'Cross-Text Connections'}
+encoder=ThreadPoolExecutor(max_workers=4)
+pending=deque()
+NUMBER=r'-?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)(?:/\d+)?'
+
+def save_image(image,target):
+    try:
+        temporary=target.with_suffix('.webp.tmp')
+        image.save(str(temporary),format='WEBP',quality=92)
+        temporary.replace(target)
+    finally:image.close()
+
+def finish_images():
+    while pending:pending.popleft().result()
 def text(p,x1,x2,y2):
     return ' '.join(p.get_text(clip=pymupdf.Rect(x1,79,x2,y2)).split()).replace('propor tional','proportional')
 def capture(p,y1,y2,name,selectable=False):
     rect=pymupdf.Rect(14,max(0,y1),p.rect.width-14,min(p.rect.height,y2))
     if rect.height<1:return None,[]
     target=ASSETS/(name+'.webp')
-    if not os.environ.get('READING_RUSH_IMPORT_CACHE') or not target.exists():p.get_pixmap(matrix=pymupdf.Matrix(2,2),clip=rect).pil_save(str(target),format='WEBP',quality=92)
+    if not os.environ.get('READING_RUSH_IMPORT_CACHE') or not target.exists() or target.stat().st_size==0 or name.split('-')[0] in UNLABELED_FOURTH:
+        # Render with PyMuPDF on this thread; encode independent Pillow images in parallel.
+        pending.append(encoder.submit(save_image,p.get_pixmap(matrix=pymupdf.Matrix(2,2),clip=rect).pil_image(),target))
+        if len(pending)>=12:pending.popleft().result()
     words=[]
     if selectable:
         for w in p.get_text('words',clip=rect):
@@ -32,6 +54,7 @@ for arg in sys.argv[1:]:
             ident=re.search(r'Question ID: (\w+)',ids[0][4])[1]
             question=next(b for b in blocks if b[4].strip()=='Question')
             current={'id':ident,'subject':text(p,133,248,question[1]-3),'domain':text(p,248,363,question[1]-3),'skill':text(p,363,478,question[1]-3),'difficulty':text(p,478,596,question[1]-3),'passage':[],'passageText':[],'choices':{k:[] for k in 'ABCD'},'explanation':[],'source':source.name}
+            current['skill']=SKILL_ALIASES.get(current['skill'],current['skill'])
             imported.append(current);state='passage';start=question[3]+3;current['_text']=''
         else:start=16
         assert current is not None
@@ -47,6 +70,9 @@ for arg in sys.argv[1:]:
             elif t=='Rationale':markers.append((b[1]-3,b[3]+3,'explanation',None))
             elif re.match(r'^[ABCD]\.\s',b[4]) and (state=='choice' or state=='choices' or any(m[2]=='choices' for m in markers)):
                 markers.append((b[1]-3,b[1]-3,'choice',t[0]))
+            elif current['id'] in UNLABELED_FOURTH and t.startswith(UNLABELED_FOURTH[current['id']]):
+                markers.append((b[1]-3,b[1]-3,'choice','D'))
+                current['importNote']='Source omits the D label; fourth option identified by order and official Choice D rationale.'
         markers.sort()
         def add(end):
             if state not in ('passage','choice','explanation'):return
@@ -62,15 +88,16 @@ for arg in sys.argv[1:]:
         content_bottom=max([b[3] for b in blocks]+[r['bbox'][3] for r in p.get_image_info()]+[16])
         add(min(p.rect.height-15,content_bottom+12))
         if (pi+1)%100==0:print(f'{source.name}: {pi+1}/{len(doc)} pages',flush=True)
+    finish_images()
     for q in imported:
         if not q.get('correct'):
             rationale=q['_text'].split('Rationale',1)[-1]
             choice=re.search(r'Choice ([ABCD]) is (?:the best answer|correct)',rationale)
-            examples=re.search(r'Note that (.{1,180}?) are examples',rationale,re.S)
-            numeric=re.search(r'The correct answer is (?:either )?(-?(?:\d*\.)?\d+(?:/\d+)?)(?: or (-?(?:\d*\.)?\d+(?:/\d+)?))?',rationale)
+            examples=re.search(r'Note that\s+(.{1,180}?)\s+are examples',rationale,re.S)
+            numeric=re.search(r'The correct answer is (?:either )?('+NUMBER+r')(?: or ('+NUMBER+r'))?',rationale)
             if choice:q['correct']=choice[1]
-            elif examples:q['correct']=', '.join(re.findall(r'-?(?:\d*\.)?\d+(?:/\d+)?',examples[1]))
-            elif numeric:q['correct']=', '.join(x for x in numeric.groups() if x)
+            elif examples:q['correct']=', '.join(x.replace(',','') for x in re.findall(NUMBER,examples[1]))
+            elif numeric:q['correct']=', '.join(x.replace(',','') for x in numeric.groups() if x)
             q['type']='multiple' if q.get('correct') in ['A','B','C','D'] else 'numeric'
             q['answerSource']='Official rationale (export has no answer header)'
         del q['_text']
@@ -80,4 +107,5 @@ for arg in sys.argv[1:]:
         merged[q['id']]=q
     print(f'{source.name}: imported {len(imported)} questions; {Counter(q["type"] for q in imported)}',flush=True)
 path.write_text('window.QUESTIONS = '+json.dumps(list(merged.values()),ensure_ascii=False,separators=(',',':'))+';\n',encoding='utf-8')
+encoder.shutdown()
 print(f'Total: {len(merged)} unique questions. Subjects: {Counter(q.get("subject") for q in merged.values())}',flush=True)

@@ -9,7 +9,21 @@ const assert=require('node:assert/strict');
  await p.goto(process.env.READING_RUSH_URL||'http://127.0.0.1:8767/practice.html');
  if(await p.locator('[data-consent=denied]').count())await p.click('[data-consent=denied]');
  const counts=await p.evaluate(()=>({rw:BANK.filter(q=>q.subject==='Reading and Writing').length,math:BANK.filter(q=>q.subject==='Math').length,missing:BANK.filter(q=>!window.SKILL_VIDEOS[q.skill]).map(q=>q.skill),numeric:BANK.filter(q=>q.type==='numeric').length}));
- assert.equal(counts.rw,609);assert.equal(counts.math,610);assert.deepEqual(counts.missing,[]);assert.ok(counts.numeric>0);console.log('Library:',counts);
+ assert.equal(counts.rw,1844);assert.equal(counts.math,1925);assert.deepEqual(counts.missing,[]);assert.ok(counts.numeric>0);console.log('Library:',counts);
+ const expectedDifficulties={'Reading and Writing':{Easy:611,Medium:624,Hard:609},Math:{Easy:685,Medium:630,Hard:610}};
+ for(const [subject,levels] of Object.entries(expectedDifficulties)){
+  await p.selectOption('#subject',subject);
+  for(const [difficulty,count] of Object.entries(levels)){
+   await p.selectOption('#difficulty',difficulty);
+   const matches=await p.evaluate(()=>pool().map(q=>({subject:q.subject,difficulty:q.difficulty})));assert.equal(matches.length,count);
+   assert.ok(matches.every(q=>q.subject===subject&&q.difficulty===difficulty));
+   await p.click('[data-action=start]');await p.waitForFunction(()=>session.questionStarted!==null);
+   assert.ok(await p.evaluate(d=>session.qs.every(q=>q.difficulty===d),difficulty));
+   await p.waitForFunction(()=>[...document.querySelectorAll('.pdf-img')].every(i=>i.complete&&i.naturalWidth>0));
+   await p.evaluate(()=>{session=null;setup();});
+  }
+  await p.selectOption('#difficulty','All');
+ }
  for(const subject of ['Reading and Writing','Math']){
   await p.selectOption('#subject',subject);
   const categories=await p.locator('[data-category]').evaluateAll(buttons=>buttons.map(b=>b.dataset.category));assert.equal(categories.length,4);

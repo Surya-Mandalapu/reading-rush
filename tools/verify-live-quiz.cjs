@@ -4,7 +4,7 @@ const production=process.env.LIVE_QUIZ_REAL==='1',base=process.env.LIVE_QUIZ_URL
 const sdk='https://www.gstatic.com/firebasejs/13.0.0/';
 const source=fs.readFileSync('app/questions.js','utf8'),questions=JSON.parse(source.slice(source.indexOf('['),source.lastIndexOf(']')+1));
 assert.ok(questions.every(q=>/^[a-f0-9]{8}$/.test(q.id)));
-const fixture=[...questions.filter(q=>q.subject==='Reading and Writing').slice(0,5),questions.find(q=>q.type==='numeric'&&q.correct==='403')];
+const fixture=[...questions.filter(q=>q.subject==='Reading and Writing'&&q.difficulty==='Easy').slice(0,5),questions.find(q=>q.subject==='Reading and Writing'&&q.difficulty==='Medium'),questions.find(q=>q.type==='numeric'&&q.correct==='403')];
 (async()=>{
  const browser=await playwright.chromium.launch({headless:true,executablePath:process.env.CHROMIUM_EXECUTABLE});
  const contexts=[],pages=[],errors=[];
@@ -43,7 +43,8 @@ const fixture=[...questions.filter(q=>q.subject==='Reading and Writing').slice(0
  let host,code;
  try{
   host=await newPlayer();const alice=await newPlayer(),bob=await newPlayer(),outsider=await newPlayer();
-  await host.selectOption('#live-count','5');await host.click('#create-room button');await host.waitForSelector('#room-code').catch(async e=>{console.log('Room creation status:',await host.locator('#live-status').innerText());throw e;});code=await host.locator('#room-code').innerText();assert.match(code,/^[A-HJ-NP-Z2-9]{6}$/);
+  await host.selectOption('#live-count','5');await host.selectOption('#live-difficulty','Easy');await host.click('#create-room button');await host.waitForSelector('#room-code').catch(async e=>{console.log('Room creation status:',await host.locator('#live-status').innerText());throw e;});code=await host.locator('#room-code').innerText();assert.match(code,/^[A-HJ-NP-Z2-9]{6}$/);
+  const chosen=await raw(host,'room',{code});assert.ok(chosen.questionIds.every(id=>questions.find(q=>q.id===id)?.difficulty==='Easy'));
   console.log('Created room',code);await Promise.all([join(alice,code,'Alice'),join(bob,code,'Bob')]);await host.waitForFunction(()=>document.querySelectorAll('.live-roster li').length===2);console.log('Lobby joined');
   await host.screenshot({path:'tmp/live-lobby.png',fullPage:true});
   const aliceUid=await raw(alice,'uid'),bobUid=await raw(bob,'uid');
@@ -73,7 +74,7 @@ const fixture=[...questions.filter(q=>q.subject==='Reading and Writing').slice(0
   host.once('dialog',d=>d.accept());await host.click('[data-live-action=delete]');await host.waitForSelector('#create-room');await alice.waitForSelector('#create-room');await bob.waitForSelector('#create-room');
   console.log('First room deleted');
   // A second room covers numeric answers, a host who plays, lobby removal and joining again.
-  await host.selectOption('#live-subject','Math');await host.check('#host-plays');await host.fill('#host-name','Host');await host.click('#create-room button');await host.waitForSelector('#room-code');code=await host.locator('#room-code').innerText();
+  await host.selectOption('#live-subject','Math');await host.selectOption('#live-difficulty','Hard');await host.check('#host-plays');await host.fill('#host-name','Host');await host.click('#create-room button');await host.waitForSelector('#room-code');code=await host.locator('#room-code').innerText();
   await join(alice,code,'Alice');await host.waitForFunction(()=>document.querySelectorAll('.live-roster li').length===2);
   await host.locator('[data-remove-player]').click();await alice.waitForSelector('#create-room');await join(alice,code,'Alice again');
   await host.click('[data-live-action=start]');await alice.waitForSelector('.live-game');

@@ -1,6 +1,13 @@
 # DosPrep
 
-Personal SAT practice with a library of **1,219 unique Hard questions**: **609 Reading and Writing** and **610 Math**, imported from the supplied College Board exports. Math includes 387 multiple-choice and 223 typed-response questions. Four questions from the initial export also appear in the full Reading and Writing export and are deduplicated by question ID.
+Personal SAT practice with a library of **3,769 unique questions**: **1,844 Reading and Writing** and **1,925 Math**, imported from the supplied College Board exports. Questions are deduplicated by their College Board IDs, preserving existing practice history and timing benchmarks.
+
+| Subject | Easy | Medium | Hard | Total |
+| --- | ---: | ---: | ---: | ---: |
+| Reading and Writing | 611 | 624 | 609 | 1,844 |
+| Math | 685 | 630 | 610 | 1,925 |
+
+Choose Easy, Medium, Hard, or All in solo practice and Live Quiz. Every imported question includes its original explanation; Math supports both multiple-choice and typed responses.
 
 Website: https://suryamandalapu-boop.github.io/reading-rush/
 
@@ -10,7 +17,7 @@ For Firebase/GA4 activation and SEO configuration, see [SETUP.md](SETUP.md). Fir
 
 ## Practice and review
 
-Choose a subject, category, skills, question count, and pace. Sessions use each matching question once. Practice from the full library, previous mistakes, or marked questions; optionally skip previously attempted questions. Typed Math answers accept numbers, decimals, fractions, and equivalent numeric values. Where the official export gives multiple accepted responses, those responses are preserved. Invalid numeric input is rejected.
+Choose a subject, category, skills, difficulty, question count, and pace. Sessions use each matching question once. Practice from the full library, previous mistakes, or marked questions; optionally skip previously attempted questions. Typed Math answers accept numbers, decimals, fractions, and equivalent numeric values. Where the official export gives multiple accepted responses, those responses are preserved. Invalid numeric input is rejected.
 
 Incorrect answers do **not** reveal the right answer or highlight the correct choice. Choose **Try again** for another attempt, or **Reveal answer & explanation** when ready. Revealing during a retry lets you continue to the next question. Accuracy and stars retain the first attempt; retries and their outcomes are saved for review. Missed answers also stay hidden in session review until explicitly revealed.
 
@@ -46,7 +53,7 @@ The existing Enterprise Native database `dosprep-rooms` and standard snapshot li
 
 ## Live Quiz
 
-Open `live.html` to host or join by a six-character code. Hosts choose Reading and Writing or Math, a category, and 5/10/20 questions. Up to 20 players join with nicknames; the host can spectate or answer too. Joining closes when the quiz starts. Everyone sees the same question, submits one private answer, and automatically sees all answers when everyone submits. Only the author can read a response before reveal, including against direct database requests; the host may explicitly reveal early for absent players. The host advances questions. Correct responses earn 100 points, with no time limit or speed bonus. Numeric answers accept equivalent decimals/fractions.
+Open `live.html` to host or join by a six-character code. Hosts choose Reading and Writing or Math, a category, difficulty, and 5/10/20 questions. Up to 20 players join with nicknames; the host can spectate or answer too. Joining closes when the quiz starts. Everyone sees the same question, submits one private answer, and automatically sees all answers when everyone submits. Only the author can read a response before reveal, including against direct database requests; the host may explicitly reveal early for absent players. The host advances questions. Correct responses earn 100 points, with no time limit or speed bonus. Numeric answers accept equivalent decimals/fractions.
 
 Rooms use Firebase anonymous or existing account authentication and the Firestore Enterprise Native database `dosprep-rooms` in `us-west1`. Snapshot listeners are necessary for synchronized room updates, so this uses the standard realtime SDK rather than pipelines. Live answers are separate from solo history. Anonymous room identities preserve the existing solo guest progress store. Refreshing reconnects a participant or host; if the host disconnects, players can still finish answering and trigger the reveal, then wait for the host to return and advance. Hosts can reveal early or end a quiz to handle absent participants.
 
@@ -62,6 +69,6 @@ Install dependencies with `python -m pip install pymupdf Pillow`, then run:
 python tools/import_questions.py "another-export.pdf"
 ```
 
-Include answers and rationales in the export. The importer merges by ID, preserves diagrams and vector math with rendered WebP assets, and extracts selectable word positions and category metadata. It reads missing answer headers from the official rationale when possible and fails validation if an answer remains unavailable. After importing a different export, inspect the rendered pages to verify layout and metadata. Original PDFs and recordings remain local and are ignored by Git. Source files in `app/` deploy to GitHub Pages on pushes to `main`.
+Include answers and rationales in the export. The importer merges by ID, preserves diagrams and vector math with rendered WebP assets, and extracts selectable word positions and category metadata. It reads missing answer headers from the official rationale when possible and fails validation if an answer remains unavailable. The Easy Reading and Writing export prints question `e3bbf2bf`'s fourth option as an unlabeled bullet; the importer separates it as D based on its order and the official Choice D rationale. Image rendering stays on the main thread while independent WebP encoding jobs run in parallel. After importing a different export, inspect the rendered pages to verify layout and metadata. Original PDFs and recordings remain local and are ignored by Git. Source files in `app/` deploy to GitHub Pages on pushes to `main`.
 
 This independent personal study tool is not affiliated with OnePrep, College Board, or video publishers.
