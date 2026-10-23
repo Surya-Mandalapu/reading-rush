@@ -1,4 +1,7 @@
 rules_version = '2';
+// userProgress/{uid}/records/{recordId}: private session/flag/highlight JSON fragments.
+// kind/key/part immutable; parts 1..256, part 0..parts-1; revision UUID;
+// value <=50k chars, deleted bool (tombstone), changedAt local ms, updatedAt server time.
 // rooms/{code}: immutable owner/subject/questionIds/createdAt/expiresAt;
 // state, round, memberIds, roundPlayers and answeredIds drive the game.
 // players/{uid}: immutable name (1..24) and joinedAt.
@@ -188,6 +191,30 @@ service cloud.firestore {
    allow get: if signed() && questionId.matches('^[a-f0-9]{8}$') && group in ['all','correct','incorrect'];
    allow list: if false;
    allow create, update: if signed() && group in ['all','correct','incorrect'] && hasNewEvent() && validIncrement(request.resource.data);
+   allow delete: if false;
+  }
+  match /userProgress/{uid}/records/{recordId} {
+   function progressOwner(){ return signed() && request.auth.uid == uid && request.auth.token.firebase.sign_in_provider != 'anonymous'; }
+   function validProgress(d){
+    return d.keys().hasAll(['kind','key','part','parts','revision','value','deleted','changedAt','updatedAt'])
+     && d.keys().hasOnly(['kind','key','part','parts','revision','value','deleted','changedAt','updatedAt'])
+     && recordId.matches('^(session|flag|highlight)_[a-f0-9]{64}_[0-9]{1,3}$')
+     && d.kind in ['session','flag','highlight'] && d.key is string && d.key.size() > 0 && d.key.size() <= 180
+     && d.part is int && d.parts is int && d.part >= 0 && d.parts >= 1 && d.parts <= 256 && d.part < d.parts
+     && recordId.matches('^'+d.kind+'_[a-f0-9]{64}_'+string(d.part)+'$')
+     && (d.kind == 'session' || d.key.matches('^[a-f0-9]{8}$'))
+     && (d.kind != 'flag' || (d.parts == 1 && (d.deleted || d.value == 'true')))
+     && d.revision is string && d.revision.matches('^[a-f0-9-]{36}$')
+     && d.value is string && d.value.size() <= 50000 && d.deleted is bool
+     && (!d.deleted || (d.value == '' && d.parts == 1 && d.part == 0))
+     && d.changedAt is int && d.changedAt > 0 && d.changedAt <= request.time.toMillis()+300000
+     && d.updatedAt == request.time;
+   }
+   allow read: if progressOwner();
+   allow create: if progressOwner() && validProgress(request.resource.data);
+   allow update: if progressOwner() && validProgress(request.resource.data)
+    && request.resource.data.kind == resource.data.kind && request.resource.data.key == resource.data.key
+    && request.resource.data.part == resource.data.part && request.resource.data.changedAt >= resource.data.changedAt;
    allow delete: if false;
   }
   match /{document=**} { allow read, write: if false; }

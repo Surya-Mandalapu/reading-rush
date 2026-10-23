@@ -23,7 +23,7 @@ node tools/configure-site.mjs "public-firebase-web-config.json" "G-YOURREALID"
 
 ## What the backend does
 
-Firebase handles identity only. Guest, signed-in, and other accounts have separate browser-local study stores. This update does not add Firestore or cloud synchronization. An account does not make static question assets private; GitHub Pages serves the public app and assets. The original guest history remains under its existing storage key. Export it as a backup before signing in and restore it within the account if desired.
+Firebase Authentication identifies signed-in users, and the existing `dosprep-rooms` Firestore database syncs their private progress at `userProgress/{uid}/records`. Deploy `firestore.rules` and `firestore.indexes.json` before publishing the client. Guest progress remains browser-local; the signed-in practice page offers an explicit guest import. The website and question assets remain public. No billing upgrade or Cloud Functions are needed; usage must remain within the project’s shared free quotas. See README for conflict handling, offline queues, and emulator tests.
 
 Authentication and Analytics are configured. Practice works independently of analytics. Optional usage tracking is off until visitors consent. The app does not send emails, passwords, answers, question content, highlights, or Firebase user IDs to Analytics. Analytics preference can be changed on the privacy page.
 
