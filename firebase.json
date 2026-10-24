@@ -1,6 +1,9 @@
 {
   "emulators": {
-    "firestore": { "port": 8080, "edition": "enterprise" },
+    "firestore": {
+      "port": 8080,
+      "edition": "enterprise"
+    },
     "auth": {
       "port": 9099
     },
@@ -29,6 +32,12 @@
           "https://suryamandalapu-boop.github.io"
         ]
       }
-    }
+    },
+    "authorizedDomains": [
+      "dosprep-study-a7f31.firebaseapp.com",
+      "dosprep-study-a7f31.web.app",
+      "suryamandalapu-boop.github.io",
+      "dosprep.vercel.app"
+    ]
   }
 }

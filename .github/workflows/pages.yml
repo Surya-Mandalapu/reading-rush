@@ -19,9 +19,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build Pages with browser-data migration safeguards
+        run: node tools/build-pages.mjs
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: app
+          path: dist-pages
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

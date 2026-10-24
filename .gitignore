@@ -11,3 +11,10 @@ firebase-debug*.log
 .firebase/
 .env*
 *service-account*.json
+.vercel/
+dist/
+dist-pages/
+dosprep-browser-migration*.json
+
+.vercel
+.env*
