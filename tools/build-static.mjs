@@ -18,7 +18,9 @@ await fs.rm(output,{recursive:true,force:true});await fs.mkdir(output,{recursive
 for(const entry of await fs.readdir('app',{withFileTypes:true}))if(entry.name!=='assets'&&entry.name!=='questions.js')await fs.cp(path.join('app',entry.name),path.join(output,entry.name),{recursive:true});
 let source=root,temp;
 try{
- if(process.env.DOSPREP_FETCH_ASSETS==='1'||!await fs.stat('app/assets').then(()=>true,()=>false)){
+ // Git deployments may leave an empty assets directory after .vercelignore.
+ // Check the required payload file instead of the directory's existence.
+ if(process.env.DOSPREP_FETCH_ASSETS==='1'||!await fs.stat('app/questions.js').then(()=>true,()=>false)){
   temp=await fs.mkdtemp(path.join(process.env.DOSPREP_TEMP_ROOT||os.tmpdir(),'dosprep-build-'));source=temp;
   const archive=path.join(temp,'assets.tar.gz'),response=await fetch(`https://codeload.github.com/${lock.repository}/tar.gz/${lock.commit}`);
   if(!response.ok)throw Error(`Pinned asset download failed: ${response.status}`);
