@@ -11,3 +11,15 @@ export function isCorrect(question,answer){
 }
 export function shuffled(items){const result=[...items];for(let i=result.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}return result;}
 export function roomCode(){const alphabet='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';return [...crypto.getRandomValues(new Uint8Array(6))].map(n=>alphabet[n%alphabet.length]).join('');}
+export const LIVE_ROUND_MS=100000;
+export function speedPoints(correct,elapsedMs){
+ if(!correct||!Number.isFinite(elapsedMs)||elapsedMs<0||elapsedMs>=LIVE_ROUND_MS)return 0;
+ return 100+Math.round(100*(1-elapsedMs/LIVE_ROUND_MS));
+}
+export function answerPoints(question,response,round){
+ if(!isCorrect(question,response?.answer))return 0;
+ if(!round?.startedAt)return 100;
+ const submitted=response?.submittedAt?.toMillis?.(),started=round.startedAt.toMillis();
+ if(round.legacy&&submitted<started)return 100;
+ return speedPoints(true,submitted-started);
+}

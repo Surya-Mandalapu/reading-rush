@@ -25,6 +25,10 @@ const fixture=[...questions.filter(q=>q.subject==='Reading and Writing'&&q.diffi
    try{
     if(operation==='room')return (await f.getDoc(ref)).data();
     if(operation==='uid')return uid;
+    if(operation==='clock')return (await f.getDoc(f.doc(ref,'rounds',String(args.round||0)))).data();
+    if(operation==='resetClock')await f.updateDoc(ref,{roundStartedAt:f.serverTimestamp()});
+    if(operation==='editClock')await f.updateDoc(f.doc(ref,'rounds','0'),{startedAt:f.serverTimestamp()});
+    if(operation==='backdate'){const batch=f.writeBatch(db);batch.set(f.doc(ref,'rounds','0','answers',uid),{uid,round:0,answer:'A',submittedAt:f.Timestamp.fromMillis(Date.now()-10000)});batch.update(ref,{answeredIds:f.arrayUnion(uid)});await batch.commit();}
     if(operation==='list')await f.getDocs(f.collection(db,'rooms'));
     if(operation==='getAnswer')return {allowed:true,data:(await f.getDoc(f.doc(ref,'rounds',String(args.round||0),'answers',args.uid))).data()};
     if(operation==='listAnswers')await f.getDocs(f.collection(ref,'rounds',String(args.round||0),'answers'));
@@ -50,6 +54,10 @@ const fixture=[...questions.filter(q=>q.subject==='Reading and Writing'&&q.diffi
   const aliceUid=await raw(alice,'uid'),bobUid=await raw(bob,'uid');
   await denied(outsider,'list',{code});await denied(alice,'owner',{code});
   await host.click('[data-live-action=start]');await Promise.all([host,alice,bob].map(p=>p.waitForSelector('.live-game')));console.log('Round started');
+  const startedRoom=await raw(host,'room',{code}),clock=await raw(host,'clock',{code});
+  assert.equal(clock.durationSeconds,100);assert.deepEqual(clock.startedAt,startedRoom.roundStartedAt);
+  assert.match(await alice.locator('#live-timer').innerText(),/^1:(40|39|38)$/);
+  await denied(host,'resetClock',{code});await denied(host,'editClock',{code});await denied(alice,'backdate',{code});
   const headings=await Promise.all([host,alice,bob].map(p=>p.locator('.study>p').first().innerText()));assert.equal(new Set(headings).size,1);
   const firstQuestion=await alice.evaluate(async()=>{const f=await import('https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js');const r=(await f.getDoc(f.doc(f.getFirestore(undefined,'dosprep-rooms'),'rooms',location.hash.slice(1)))).data();return window.QUESTIONS.find(q=>q.id===r.questionIds[0]);});
   await denied(bob,'reveal',{code});await denied(bob,'spoofStatus',{code});await denied(alice,'forgeAnswer',{code,uid:bobUid});
@@ -68,12 +76,16 @@ const fixture=[...questions.filter(q=>q.subject==='Reading and Writing'&&q.diffi
 
   assert.match(await host.locator('.answer-reveal-list').innerText(),/Alice/);assert.match(await host.locator('.answer-reveal-list').innerText(),/Bob/);
   assert.equal(await host.locator('.answer-right').count(),1);assert.equal(await host.locator('.answer-wrong').count(),1);
-  await host.waitForFunction(()=>document.querySelector('.live-leaderboard')?.textContent.includes('100'));
+  const startMs=clock.startedAt.seconds*1000+clock.startedAt.nanoseconds/1e6,submittedMs=own.data.submittedAt.seconds*1000+own.data.submittedAt.nanoseconds/1e6;
+  const expectedPoints=100+Math.round(100*(1-(submittedMs-startMs)/100000));
+  await host.waitForFunction(points=>document.querySelector('.live-leaderboard li strong')?.textContent.startsWith(String(points)),expectedPoints);
+  assert.deepEqual(Object.keys(own.data).sort(),['answer','round','submittedAt','uid']);
   await host.waitForFunction(()=>[...document.querySelectorAll('.pdf-img')].every(img=>img.complete&&img.naturalWidth>0));await host.screenshot({path:'tmp/live-reveal.png',fullPage:true});
   assert.equal((await raw(bob,'getAnswer',{code,uid:aliceUid})).data.answer,firstQuestion.correct);
   await denied(outsider,'getAnswer',{code,uid:aliceUid});
   await host.click('[data-live-action=next]');await alice.waitForSelector('[data-live-action=answer]');await bob.reload();await bob.waitForSelector('[data-live-action=answer]');console.log('Next round/reload completed');
   assert.match(await bob.locator('.live-room-heading h1').innerText(),/Question 2/);assert.equal(await bob.locator('.choice.chosen').count(),0);
+  assert.deepEqual((await raw(bob,'room',{code})).roundStartedAt,(await raw(host,'clock',{code,round:1})).startedAt);
   await bob.setViewportSize({width:390,height:844});assert.equal(await bob.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await bob.screenshot({path:'tmp/live-mobile.png',fullPage:true});
   host.once('dialog',d=>d.accept());await host.click('[data-live-action=reveal]');await bob.waitForSelector('.live-reveal');assert.match(await bob.locator('.answer-reveal-list').innerText(),/Unanswered/);
   host.once('dialog',d=>d.accept());await host.click('[data-live-action=end]');await host.waitForSelector('[data-live-action=delete]');
@@ -94,6 +106,37 @@ const fixture=[...questions.filter(q=>q.subject==='Reading and Writing'&&q.diffi
   await host.waitForSelector('.live-reveal');assert.equal(await host.locator('.answer-right').count(),2);
   host.once('dialog',d=>d.accept());await host.click('[data-live-action=end]');await host.waitForSelector('[data-live-action=delete]');
   host.once('dialog',d=>d.accept());await host.click('[data-live-action=delete]');await host.waitForSelector('#create-room');
+  if(!production){
+   // Faster correct answers score more; a disconnected host cannot block timeout reveal.
+   await host.selectOption('#live-subject','Reading and Writing');await host.selectOption('#live-difficulty','Easy');await host.uncheck('#host-plays');await host.click('#create-room button');await host.waitForSelector('#room-code');code=await host.locator('#room-code').innerText();
+   await Promise.all([join(alice,code,'Alice'),join(bob,code,'Bob')]);await host.waitForFunction(()=>document.querySelectorAll('.live-roster li').length===2);
+   await host.click('[data-live-action=start]');await alice.waitForSelector('.live-game');await bob.waitForSelector('.live-game');
+   let state=await raw(host,'room',{code}),question=fixture.find(q=>q.id===state.questionIds[0]);
+   await answer(alice,question.correct);await new Promise(resolve=>setTimeout(resolve,1300));await answer(bob,question.correct);await host.waitForSelector('.live-reveal');
+   await host.waitForFunction(()=>[...document.querySelectorAll('.live-leaderboard li strong')].every(el=>parseInt(el.textContent)>100));
+   const points=await host.locator('.live-leaderboard li strong').allTextContents();assert.ok(parseInt(points[0])>parseInt(points[1]));
+   await host.click('[data-live-action=next]');await alice.waitForSelector('[data-live-action=answer]');state=await raw(host,'room',{code});question=fixture.find(q=>q.id===state.questionIds[1]);
+   await answer(alice,question.correct==='A'?'B':'A');await alice.waitForFunction(()=>document.querySelector('[data-live-action=answer]')?.textContent.includes('submitted'));
+   const token=await bob.evaluate(async sdk=>(await import(sdk+'firebase-auth.js')).getAuth().currentUser.getIdToken(),sdk);
+   for(const page of [host,alice,bob])await page.evaluate(async sdk=>{const f=await import(sdk+'firebase-firestore.js');await f.disableNetwork(f.getFirestore(undefined,'dosprep-rooms'));},sdk);
+   const prefix='projects/dosprep-study-a7f31/databases/dosprep-rooms/documents',rest='http://127.0.0.1:8080/v1/';
+   const expired=new Date(Date.now()-100500).toISOString();
+   for(const [path,field] of [[`rooms/${code}`,'roundStartedAt'],[`rooms/${code}/rounds/1`,'startedAt']]){
+    const result=await fetch(rest+prefix+'/'+path+'?updateMask.fieldPaths='+field,{method:'PATCH',headers:{Authorization:'Bearer owner','Content-Type':'application/json'},body:JSON.stringify({fields:{[field]:{timestampValue:expired}}})});assert.equal(result.status,200,await result.text());
+   }
+   // Keep the question phase open and send a valid paired submission after the deadline.
+   const late=await fetch(rest+'projects/dosprep-study-a7f31/databases/dosprep-rooms/documents:commit',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({writes:[
+    {update:{name:`${prefix}/rooms/${code}/rounds/1/answers/${bobUid}`,fields:{uid:{stringValue:bobUid},round:{integerValue:'1'},answer:{stringValue:question.correct}}},updateTransforms:[{fieldPath:'submittedAt',setToServerValue:'REQUEST_TIME'}]},
+    {transform:{document:`${prefix}/rooms/${code}`,fieldTransforms:[{fieldPath:'answeredIds',appendMissingElements:{values:[{stringValue:bobUid}]}}]}}
+   ]})});assert.equal(late.status,403,await late.text());
+   for(const page of [alice,bob])await page.evaluate(async sdk=>{const f=await import(sdk+'firebase-firestore.js');await f.enableNetwork(f.getFirestore(undefined,'dosprep-rooms'));},sdk);
+   await Promise.all([alice,bob].map(p=>p.waitForSelector('.live-reveal')));
+   assert.equal(await bob.locator('.answer-wrong').count(),2);assert.match(await bob.locator('.answer-reveal-list').innerText(),/Unanswered · \+0 pts/);
+   await host.evaluate(async sdk=>{const f=await import(sdk+'firebase-firestore.js');await f.enableNetwork(f.getFirestore(undefined,'dosprep-rooms'));},sdk);await host.waitForSelector('.live-reveal');
+   await host.click('[data-live-action=next]');await alice.waitForSelector('#live-timer');assert.match(await alice.locator('#live-timer').innerText(),/^1:(40|39|38)$/);
+   host.once('dialog',d=>d.accept());await host.click('[data-live-action=end]');await host.waitForSelector('[data-live-action=delete]');host.once('dialog',d=>d.accept());await host.click('[data-live-action=delete]');await host.waitForSelector('#create-room');
+   console.log('PASS: speed bonus ordering, server-enforced 100s cutoff, player-triggered timeout with offline host, zero wrong/unanswered points, new-round timer reset.');
+  }
   // Anonymous room identity must preserve the existing guest solo progress store.
   await alice.evaluate(()=>localStorage.setItem('reading-rush-v1',JSON.stringify({history:[],flags:['solo-guest-sentinel'],highlights:{}})));
   await alice.goto(base.replace('live.html','practice.html'));await alice.waitForFunction(async()=>{try{const {getAuth}=await import('https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js');await getAuth().authStateReady();return Boolean(getAuth().currentUser);}catch{return false;}});await alice.waitForTimeout(200);
@@ -102,7 +145,7 @@ const fixture=[...questions.filter(q=>q.subject==='Reading and Writing'&&q.diffi
   console.log(`PASS (${production?'production':'emulators'}): room codes, 3 synchronized browsers, private answers including from host, immutable answers, no forged status/host escalation, automatic reveal, leaderboard, next round/reload, early reveal, mobile, host player, removal/rejoin, room deletion, guest solo-history isolation.`);
  }catch(error){console.error('Live test failed:',error.message);throw error;}finally{
   // Remove the disposable test room on failure as well.
-  if(host&&!host.isClosed()&&code){try{await host.evaluate(async(code)=>{const f=await import('https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js'),a=await import('https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js');const db=f.getFirestore(undefined,'dosprep-rooms'),ref=f.doc(db,'rooms',code),snapshot=await f.getDoc(ref);if(!snapshot.exists()||snapshot.data().owner!==a.getAuth().currentUser.uid)return;await f.updateDoc(ref,{state:'finished'});const players=await f.getDocs(f.collection(ref,'players')),rounds=await Promise.all(Array.from({length:snapshot.data().round+1},(_,i)=>f.getDocs(f.collection(ref,'rounds',String(i),'answers'))));const batch=f.writeBatch(db);players.forEach(d=>batch.delete(d.ref));rounds.forEach(r=>r.forEach(d=>batch.delete(d.ref)));batch.delete(ref);await batch.commit();},code);}catch{}}
+  if(host&&!host.isClosed()&&code){try{await host.evaluate(async(code)=>{const f=await import('https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js'),a=await import('https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js');const db=f.getFirestore(undefined,'dosprep-rooms'),ref=f.doc(db,'rooms',code),snapshot=await f.getDoc(ref);if(!snapshot.exists()||snapshot.data().owner!==a.getAuth().currentUser.uid)return;await f.updateDoc(ref,{state:'finished'});const players=await f.getDocs(f.collection(ref,'players')),rounds=await Promise.all(Array.from({length:snapshot.data().round+1},(_,i)=>f.getDocs(f.collection(ref,'rounds',String(i),'answers'))));const batch=f.writeBatch(db);players.forEach(d=>batch.delete(d.ref));rounds.forEach((r,i)=>{r.forEach(d=>batch.delete(d.ref));batch.delete(f.doc(ref,'rounds',String(i)));});batch.delete(ref);await batch.commit();},code);}catch{}}
   for(const page of pages){try{await page.evaluate(async()=>{const {getAuth,deleteUser}=await import('https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js');const user=getAuth().currentUser;if(user?.isAnonymous)await deleteUser(user);});}catch{}}
   await browser.close();
  }
