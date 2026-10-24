@@ -16,8 +16,8 @@
   catch(error){console.warn('Community contribution pending:',error.code||error.message);retryTimer=setTimeout(drain,30000);}finally{sending=false;}
  }
  function record(id,questionId,correct,mode,actualSeconds=Infinity){
-  const matching=clock?.id===id;flush();const seconds=matching?Math.max(1,Math.round(Math.min(clock.ms/1000,actualSeconds))):0;
-  const timing=matching&&seconds>=1&&seconds<=7200;clock=null;
+  const matching=clock?.id===id;if(matching)flush();const seconds=matching?Math.max(1,Math.round(Math.min(clock.ms/1000,actualSeconds))):0;
+  const timing=matching&&seconds>=1&&seconds<=7200;if(matching)clock=null;
   enqueue({id,questionId,mode,timing,seconds:timing?seconds:0,correct:timing?Boolean(correct):false});
  }
  window.DosPrepAnswerEvents={
