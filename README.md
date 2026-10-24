@@ -63,7 +63,24 @@ The offline queue temporarily retains event timing locally for up to 24 hours an
 
 The existing Enterprise Native database `dosprep-rooms` uses standard snapshot listeners because realtime count and threshold updates are required. `node tools/verify-benchmarks.cjs` runs only with local Auth/Firestore emulators and clears only that disposable database. It verifies automatic collection despite old opt-out preferences, retries/repeats, pause/visibility timing, aggregates with no per-account time fields, outcome validation, replay protection, concurrent updates, Live separation, offline delivery, and 20-sample comparisons. Never seed production statistics.
 
-## Live Quiz
+## Practice modules
+
+Open Practice → Practice modules (also available in the sidebar). Both subjects offer Easy + Medium, Module 1, Module 2 Easy, and Module 2 Hard. Reading and Writing sets have 27 questions and a 32-minute active-practice target; Math sets have 22 questions and a 35-minute target. Preset Forms A–C use deterministic seeds and stable question-ID ordering; a fresh randomized set uses a new seed. Every run contains unique question IDs. Presets repeat until their blueprint or question library changes; fresh runs can overlap previous runs. Existing rush filters do not alter module blueprints.
+
+College Board's [structure](https://satsuite.collegeboard.org/sat/whats-on-the-test/structure) and [adaptive scoring description](https://satsuite.collegeboard.org/scores/what-scores-mean/how-scores-calculated) support module sizes, durations, mixed Module 1, and easier/harder Module 2. They do not specify these exact difficulty quotas. DosPrep's approximations (Easy / Medium / Hard) are:
+
+| Practice type | Reading and Writing | Math |
+| --- | --- | --- |
+| Easy + Medium | 14 / 13 / 0 | 11 / 11 / 0 |
+| Module 1 | 9 / 12 / 6 | 7 / 10 / 5 |
+| Module 2 Easy | 16 / 9 / 2 | 13 / 8 / 1 |
+| Module 2 Hard | 3 / 9 / 15 | 2 / 7 / 13 |
+
+All sets cover four domains: Reading and Writing uses 8 Craft and Structure, 7 Information and Ideas, 7 Standard English Conventions, and 5 Expression of Ideas; Math uses 8 Algebra, 8 Advanced Math, 3 Problem-Solving and Data Analysis, and 3 Geometry and Trigonometry. These category counts are practice targets. Reading and Writing groups similar skills and sorts difficulty within them; Math progresses by difficulty. Sampling fails explicitly rather than silently changing quotas if a bank category is insufficient.
+
+This is learning practice: immediate feedback, retries, explanations, pause, and overtime remain available. The module clock accumulates active question time, including retries, and excludes loading, explicit pauses, and time reviewing between submissions. There is no SAT score prediction or automatic adaptive routing. Module submissions call the normal solo answer recorder, and use existing history, category insights, question/community benchmarks, site-wide totals, and signed-in private cloud progress. History includes module type, form, seed, target, and difficulty blueprint; only submitted answers count. No backend schema or rules changes are required. Run `node tools/verify-modules.cjs` with the Auth/Firestore emulators and a local static server; `MODULE_UNIT_ONLY=1` checks generation without a browser.
+
+## Live Quiz rooms
 
 Open `live.html` to host or join by a six-character code. Hosts choose Reading and Writing or Math, a category, difficulty, and 5/10/20 questions. Up to 20 players join with nicknames; the host can spectate or answer too. Joining closes when the quiz starts. Everyone sees the same question, submits one private answer, and automatically sees all answers when everyone submits or the 100-second deadline arrives. Only the author can read a response before reveal, including against direct database requests; the host may explicitly reveal early for absent players. The host advances questions. Correct responses earn 100 base points plus a linear speed bonus of up to 100: `100 + round(100 × (1 − elapsedMilliseconds / 100000))`. Wrong, missing, and late answers earn zero. Elapsed time uses immutable Firebase server timestamps, from the shared round start to submission; refreshing cannot reset the timer. Each round stores immutable start metadata and a fixed 100-second duration, and rules reject submissions at or after the deadline. Completed legacy untimed rounds keep 100 points per correct response; a legacy active round receives a one-time shared clock, preserving already submitted answers at 100 points. Numeric answers accept equivalent decimals/fractions.
 
