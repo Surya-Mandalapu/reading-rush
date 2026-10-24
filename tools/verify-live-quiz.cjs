@@ -9,7 +9,7 @@ const fixture=[...questions.filter(q=>q.subject==='Reading and Writing'&&q.diffi
  const browser=await playwright.chromium.launch({headless:true,executablePath:process.env.CHROMIUM_EXECUTABLE});
  const contexts=[],pages=[],errors=[];
  async function newPlayer(){
-  const context=await browser.newContext({viewport:{width:1440,height:1000}});contexts.push(context);await context.addInitScript(()=>{window.DOSPREP_TEST_MODE=true;});
+  const context=await browser.newContext({viewport:{width:1440,height:1000}});contexts.push(context);await context.addInitScript(production=>{window.DOSPREP_TEST_MODE=production;},production);
   if(!production)await context.route('**/site-config.js',route=>route.fulfill({contentType:'application/javascript',body:fs.readFileSync('app/site-config.js','utf8')+'\nwindow.DOSPREP_CONFIG={...window.DOSPREP_CONFIG,liveEmulator:true,authEmulator:true};'}));
   if(!production)await context.route('**/questions.js',route=>route.fulfill({contentType:'application/javascript',body:'window.QUESTIONS='+JSON.stringify(fixture)+';'}));
   const page=await context.newPage();pages.push(page);page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')console.log('Browser:',m.text().slice(0,450));});
@@ -60,6 +60,12 @@ const fixture=[...questions.filter(q=>q.subject==='Reading and Writing'&&q.diffi
   const own=await raw(alice,'getAnswer',{code,uid:aliceUid});assert.equal(own.data.answer,firstQuestion.correct);
   const wrong=firstQuestion.correct==='A'?'B':'A';await answer(bob,wrong);
   await Promise.all([host,alice,bob].map(p=>p.waitForSelector('.live-reveal')));console.log('Automatic reveal completed');
+  if(!production){
+   await alice.waitForFunction(async id=>{const f=await import('https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js'),s=await f.getDoc(f.doc(f.getFirestore(undefined,'dosprep-rooms'),'liveQuestionStats',id,'groups','all'));return s.exists()&&s.data().samples>=2;},firstQuestion.id);
+   const timing=await alice.evaluate(async id=>{const f=await import('https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js'),db=f.getFirestore(undefined,'dosprep-rooms');return {all:(await f.getDoc(f.doc(db,'liveQuestionStats',id,'groups','all'))).data(),solo:(await f.getDoc(f.doc(db,'questionStats',id,'groups','all'))).exists()};},firstQuestion.id);
+   assert.deepEqual(Object.keys(timing.all).sort(),['bins','samples','totalSeconds','updatedAt']);console.log('Automatic Live timings reached their separate aggregate without identity fields');
+  }
+
   assert.match(await host.locator('.answer-reveal-list').innerText(),/Alice/);assert.match(await host.locator('.answer-reveal-list').innerText(),/Bob/);
   assert.equal(await host.locator('.answer-right').count(),1);assert.equal(await host.locator('.answer-wrong').count(),1);
   await host.waitForFunction(()=>document.querySelector('.live-leaderboard')?.textContent.includes('100'));

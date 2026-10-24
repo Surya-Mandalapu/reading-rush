@@ -60,8 +60,17 @@ function render(){
  if(!room){renderEntry();return;}
  if(room.state==='lobby')root.innerHTML=renderLobby();
  else if(room.state==='finished')root.innerHTML=`<main class="live-room">${roomHeading()}${leaderboard()}<p class="muted">Quiz complete. Thanks for studying together.</p><div class="toolbar">${isHost()?'<button data-live-action="delete">Delete room & answers</button>':''}<button class="primary" data-live-action="back">Back to Live Quiz</button></div></main>`;
- else root.innerHTML=renderQuestion();
+ else {root.innerHTML=renderQuestion();readyLiveTiming();}
  if(restore){const input=document.getElementById('live-answer');if(input&&!input.disabled){input.focus();input.setSelectionRange(restore.start,restore.end);}}
+}
+function liveAttemptId(){return `live_${code}_${room.createdAt.toMillis()}_${room.round}_${uid}`;}
+function readyLiveTiming(){
+ if(!room||room.state!=='question'||hasAnswered()||!room.roundPlayers.includes(uid))return;
+ const id=liveAttemptId(),question=room.questionIds[room.round];
+ const images=[...root.querySelectorAll('.pdf-img')];
+ Promise.all(images.map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});}))).then(()=>{
+  if(room?.state==='question'&&!hasAnswered()&&liveAttemptId()===id)window.DosPrepAnswerEvents?.begin(id,question);
+ });
 }
 function validSelection(q){return q.type==='numeric'?numericValue(selection)!==null:'ABCD'.includes(selection)&&selection.length===1;}
 function watchAnswers(){
@@ -143,8 +152,10 @@ async function submitAnswer(){
  if(!room||room.state!=='question'||hasAnswered()||!room.roundPlayers.includes(uid))return;
  const round=room.round,answer=selection,q=byId.get(room.questionIds[round]);if(!validSelection(q))return;
  // The array transform merges simultaneous submissions without replacing a peer's status.
- const batch=writeBatch(db);batch.set(responseRef(round),{uid,round,answer,submittedAt:serverTimestamp()});batch.update(roomRef(),{answeredIds:arrayUnion(uid)});await batch.commit();
- window.DosPrepAnswerEvents?.live(`live_${code}_${room.createdAt.toMillis()}_${round}_${uid}`,q.id);
+ const attemptId=liveAttemptId();window.DosPrepAnswerEvents?.pause();
+ const batch=writeBatch(db);batch.set(responseRef(round),{uid,round,answer,submittedAt:serverTimestamp()});batch.update(roomRef(),{answeredIds:arrayUnion(uid)});
+ try{await batch.commit();}catch(error){window.DosPrepAnswerEvents?.resume();throw error;}
+ window.DosPrepAnswerEvents?.live(attemptId,q.id,isCorrect(q,answer));
 }
 async function removePlayer(playerUid){
  if(room.state!=='lobby')throw Error('Players can leave only in the lobby.');
