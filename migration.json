@@ -1,7 +1,8 @@
 {
-  "enabled": false,
+  "enabled": true,
   "oldOrigin": "https://suryamandalapu-boop.github.io",
   "oldBasePath": "/reading-rush/",
   "targetOrigin": "https://dosprep.vercel.app",
-  "verifiedDeployment": null
+  "verifiedDeployment": "dpl_G5oYzJJMhJT1C2D41SkHAFthVCXY",
+  "verifiedChecks": ["asset-integrity", "firebase-authorized-domain", "email-auth-cross-origin-cloud-sync", "google-oauth-launch", "mixed-origin-live-rooms", "metrics-and-offline-emulators", "migration-storage-and-popup-transfer", "production-migration-receiver", "seo-and-static-pages", "ga4-tag-and-project-pulse-origins"]
 }

@@ -2,6 +2,8 @@
 
 Production: https://dosprep.vercel.app/ — Vercel project `prj_S5OhPLMdRmaVudYFPA6QhVLfbYkd`, Hobby team `suryamandalapu-5994` (`team_0XNAmXXyVIywIvpRxTUtM2J9`). Static files only: no Vercel Functions, Middleware, paid Blob, Image Optimization, or database.
 
+The public Project Pulse collector retains its existing Sites project `appgprj_6ad6db2b49bc819183e42053fb94a54c`, D1 binding, stored events, URL and `dosprep` project ID. Version 2 adds the Vercel origin while retaining GitHub Pages. Both origin/project/path combinations were verified; malformed QA requests were rejected without inserting visits. The separate private dashboard was not modified.
+
 Firebase remains `dosprep-study-a7f31`, web app `1:772349583234:web:18813d737ab9b9a1f8399b`, named Enterprise Native Firestore database `dosprep-rooms` in `us-west1`. Firebase Auth accounts, user IDs, private cloud progress, live rooms, rules, question statistics and counters are unchanged. `G-H9PYRFYZ4R` remains the GA4 measurement ID; Project Pulse keeps project ID `dosprep`. New-domain visitors sign in again because browser authentication persistence is origin-specific. Google popup auth continues using `dosprep-study-a7f31.firebaseapp.com`; the Firebase authorized domains retain both old domains and `dosprep.vercel.app`. Firebase CLI 15.34.1 deploys auth providers but ignores `auth.authorizedDomains`; maintain that field for documentation and verify/update the live list with Identity Toolkit Admin `projects.config` before relying on a domain change.
 
 ## Build and free-tier budget

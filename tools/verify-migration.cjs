@@ -32,6 +32,7 @@ class Storage{constructor(entries=[]){this.map=new Map(entries);}get length(){re
   await context.route('**/*',async route=>{
    const url=new URL(route.request().url());if(![oldOrigin,newOrigin].includes(url.origin))return route.abort();
    if(url.origin===newOrigin&&url.pathname==='/practice.html')return route.fulfill({contentType:'text/html',body:'<h1>New DosPrep practice</h1>'});
+   if(url.origin===newOrigin&&process.env.DOSPREP_REMOTE_RECEIVER==='1')return route.continue();
    let relative=url.pathname.replace(url.origin===oldOrigin?'/reading-rush/':'/','')||'index.html';
    const file=path.resolve(staged,url.origin===oldOrigin?'dist-pages':'dist',relative);
    if(!file.startsWith(path.resolve(staged)+path.sep)||!fs.existsSync(file))return route.fulfill({status:404,body:'Not found'});
@@ -53,6 +54,7 @@ class Storage{constructor(entries=[]){this.map=new Map(entries);}get length(){re
   // Dirty storage blocks redirect; an empty browser redirects and retains the room hash.
   const clean=await browser.newContext();await clean.route('**/*',async route=>{const url=new URL(route.request().url());if(![oldOrigin,newOrigin].includes(url.origin))return route.abort();if(url.origin===newOrigin)return route.fulfill({contentType:'text/html',body:'<h1>Room</h1>'});const relative=url.pathname.replace('/reading-rush/','')||'index.html',file=path.resolve(staged,'dist-pages',relative);return route.fulfill({contentType:types[path.extname(file)]||'text/plain',body:fs.readFileSync(file)});});
   const invite=await clean.newPage();await invite.goto(oldOrigin+'/reading-rush/live.html?mode=quiz#ABC234');await invite.waitForURL(newOrigin+'/live.html?mode=quiz#ABC234');
+  const blocked=await clean.newPage();await blocked.addInitScript(()=>{Storage.prototype.getItem=function(){throw new DOMException('Blocked','SecurityError');};});await blocked.goto(oldOrigin+'/reading-rush/practice.html');assert.equal(new URL(blocked.url()).origin,oldOrigin);assert.ok(await blocked.locator('#move-data').isDisabled());assert.match(await blocked.locator('#migration-status').innerText(),/blocking access/);assert.match(await blocked.locator('#stay-old').getAttribute('href'),/legacy\/practice.html/);
   assert.deepEqual(errors,[]);console.log('PASS: real cross-origin popup handshake and saved-data acknowledgement, account backups/guest history/queues, source originals retained, old room recovery link, clean redirect preserves query and room code.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
