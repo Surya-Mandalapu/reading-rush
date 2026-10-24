@@ -30,7 +30,9 @@ try{
  const entries=Object.entries(lock.files);
  for(let start=0;start<entries.length;start+=24)await Promise.all(entries.slice(start,start+24).map(async([relative,expected])=>{
   if(relative.startsWith('/')||relative.includes('..')||relative.includes('\\'))throw Error('Unsafe asset path');
-  const data=await fs.readFile(path.join(source,'app',relative));
+  let data=await fs.readFile(path.join(source,'app',relative));
+  // Git normalizes this text file to LF; Windows checkouts may contain CRLF.
+  if(relative==='questions.js')data=Buffer.from(data.toString('utf8').replace(/\r\n/g,'\n'));
   if(data.length!==expected.bytes||crypto.createHash('sha256').update(data).digest('hex')!==expected.sha256)throw Error(`Asset integrity mismatch: ${relative}. Regenerate the asset lock after committing imports.`);
   await fs.mkdir(path.dirname(path.join(output,relative)),{recursive:true});await fs.writeFile(path.join(output,relative),data);bytes+=data.length;
  }));
