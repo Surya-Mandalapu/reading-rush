@@ -1,5 +1,7 @@
 # DosPrep
 
+Website: **https://dosprep.vercel.app/**. Hosting, free-tier asset limits, browser-data migration, deployment, recovery, and rollback are documented in [HOSTING.md](HOSTING.md). The Firebase project and all backend data remain unchanged.
+
 Personal SAT practice with a library of **3,769 unique questions**: **1,844 Reading and Writing** and **1,925 Math**, imported from the supplied College Board exports. Questions are deduplicated by their College Board IDs, preserving existing practice history and timing benchmarks.
 
 | Subject | Easy | Medium | Hard | Total |

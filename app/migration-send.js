@@ -1,11 +1,14 @@
 import {snapshot,destination} from './migration-core.js';
+function initialize(){
 const settings=window.DOSPREP_MIGRATION,status=document.getElementById('migration-status');
 if(!settings?.enabled||!settings.targetOrigin||location.origin!==settings.oldOrigin)throw Error('Site migration is not active.');
-const target=destination(location,settings),bundle=snapshot(localStorage,settings.oldOrigin);
-const room=localStorage.getItem('dosprep-live-room');
+const target=destination(location,settings);
 const legacy=new URL(settings.oldBasePath+'legacy/'+(location.pathname.slice(settings.oldBasePath.length)||'index.html')+location.search+location.hash,settings.oldOrigin);
 document.getElementById('stay-old').href=legacy.href;
 document.getElementById('continue-new').href=target;
+let bundle,room;
+try{bundle=snapshot(localStorage,settings.oldOrigin);room=localStorage.getItem('dosprep-live-room');}
+catch{status.textContent='This browser is blocking access to saved data. Allow site storage to transfer it, or stay on the old site to recover progress. No automatic redirect was performed.';document.getElementById('move-data').disabled=true;document.getElementById('download-data').disabled=true;return;}
 const roomLink=document.getElementById('finish-room');
 if(room){roomLink.hidden=false;roomLink.href=settings.oldBasePath+'legacy/live.html#'+encodeURIComponent(room);}
 let popup,nonce,sent;
@@ -29,3 +32,5 @@ document.getElementById('download-data').addEventListener('click',()=>{
 // Never strand offline users, stored room identities, guest history, or any pending cloud/answer data.
 if(!bundle.entries.length&&navigator.onLine&&!new URLSearchParams(location.search).has('migration'))location.replace(target);
 else status.textContent=navigator.onLine?'This browser has DosPrep data. Transfer it or download a backup before continuing. Your originals remain available on the old site.':'You are offline. Your progress is still on this browser. Stay here or download a backup; transfer after reconnecting.';
+}
+initialize();
