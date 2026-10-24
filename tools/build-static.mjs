@@ -13,7 +13,7 @@ const migration=JSON.parse(await fs.readFile('migration.json','utf8'));
 const origin=process.env.DOSPREP_ORIGIN||migration.targetOrigin;
 if(!origin||new URL(origin).origin!==origin||!/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin))throw Error('Set DOSPREP_ORIGIN to the verified production Vercel origin.');
 const lock=JSON.parse(await fs.readFile('asset-lock.json','utf8'));
-if(!/^[a-f0-9]{40}$/.test(lock.commit)||lock.repository!=='suryamandalapu-boop/reading-rush')throw Error('Invalid asset snapshot');
+if(!/^[a-f0-9]{40}$/.test(lock.commit)||lock.repository!=='Surya-Mandalapu/reading-rush')throw Error('Invalid asset snapshot');
 await fs.rm(output,{recursive:true,force:true});await fs.mkdir(output,{recursive:true});
 for(const entry of await fs.readdir('app',{withFileTypes:true}))if(entry.name!=='assets'&&entry.name!=='questions.js')await fs.cp(path.join('app',entry.name),path.join(output,entry.name),{recursive:true});
 let source=root,temp;
