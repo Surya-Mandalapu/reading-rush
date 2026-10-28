@@ -245,7 +245,7 @@ function numericCorrect(input,expected){
  // numeric equivalence only, rather than inventing a broad rounding tolerance.
  return expected.split(/,|;|\bor\b/).some(s=>{const n=parseNumeric(s);return n!==null&&Math.abs(value-n)<=1e-10*Math.max(1,Math.abs(n));});
 }
-function numericInput(q,a){return `<div class="card"><label for="numeric-answer"><b>Your answer</b></label><p class="muted">Enter a number, decimal, or fraction.</p><input id="numeric-answer" type="text" inputmode="text" autocomplete="off" spellcheck="false" value="${esc(a?a.selected||'':session.selected||'')}" ${!canAnswer()?'disabled':''} aria-describedby="numeric-hint"><small id="numeric-hint">Examples: 12, -0.5, 2/3. Press Enter to check.</small><p id="numeric-error" class="error" role="status"></p></div>`;}
+function numericInput(q,a){return `<div class="card"><label for="numeric-answer"><b>Your answer</b></label><p class="muted">Enter a number, decimal, or fraction.</p><input id="numeric-answer" class="${a?(a.correct?'correct':'wrong'):''}" type="text" inputmode="text" autocomplete="off" spellcheck="false" value="${esc(a?a.selected||'':session.selected||'')}" ${!canAnswer()?'disabled':''} aria-describedby="numeric-hint"><small id="numeric-hint">Examples: 12, -0.5, 2/3. Press Enter to check.</small><p id="numeric-error" class="error" role="status"></p></div>`;}
 root.addEventListener('input',e=>{
  if(e.target.id!=='numeric-answer'||!canAnswer())return;
  session.selected=e.target.value.trim();const valid=parseNumeric(session.selected)!==null;

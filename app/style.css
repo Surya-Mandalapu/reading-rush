@@ -69,6 +69,9 @@
 .choice{isolation:isolate}
 .choice .pdf-img{mix-blend-mode:multiply}
 .choice:disabled{opacity:1}
+#numeric-answer.correct{border:2px solid #32a36a;background:#eafaf0;padding:14px}
+#numeric-answer.wrong{border:2px solid #da5b65;background:#fff1f1;padding:14px}
+#numeric-answer:disabled{opacity:1;color:inherit;-webkit-text-fill-color:currentColor}
 .choice.eliminated:disabled{opacity:.35}
 .timer-controls{display:flex;align-items:center;gap:12px}
 .timer-controls>button{font-size:15px;white-space:nowrap}
