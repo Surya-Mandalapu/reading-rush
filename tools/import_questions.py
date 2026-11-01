@@ -5,6 +5,8 @@ from collections import Counter
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 import pymupdf
+from PIL import ImageDraw
+from pdf_choice_layout import choice_top,trim_choice_width
 ROOT=Path(__file__).resolve().parents[1]
 OUT=ROOT/'app'
 ASSETS=OUT/'assets'
@@ -31,13 +33,24 @@ def finish_images():
     while pending:pending.popleft().result()
 def text(p,x1,x2,y2):
     return ' '.join(p.get_text(clip=pymupdf.Rect(x1,79,x2,y2)).split()).replace('propor tional','proportional')
-def capture(p,y1,y2,name,selectable=False):
+def capture(p,y1,y2,name,selectable=False,choice_letter=None):
     rect=pymupdf.Rect(14,max(0,y1),p.rect.width-14,min(p.rect.height,y2))
     if rect.height<1:return None,[]
     target=ASSETS/(name+'.webp')
-    if not os.environ.get('READING_RUSH_IMPORT_CACHE') or not target.exists() or target.stat().st_size==0 or name.split('-')[0] in UNLABELED_FOURTH:
+    if choice_letter or not os.environ.get('READING_RUSH_IMPORT_CACHE') or not target.exists() or target.stat().st_size==0 or name.split('-')[0] in UNLABELED_FOURTH:
         # Render with PyMuPDF on this thread; encode independent Pillow images in parallel.
-        pending.append(encoder.submit(save_image,p.get_pixmap(matrix=pymupdf.Matrix(2,2),clip=rect).pil_image(),target))
+        pixmap=p.get_pixmap(matrix=pymupdf.Matrix(2,2),clip=rect)
+        image=pixmap.pil_image()
+        if choice_letter:
+            # The UI supplies the A–D badge. Remove only the source label's ink;
+            # preserve left-aligned continuation lines and adjacent vector math.
+            draw=ImageDraw.Draw(image)
+            for word in p.get_text('words'):
+                if word[4]==choice_letter+'.' and word[0]<32 and rect.y0<word[1] and word[3]<rect.y1:
+                    draw.rectangle((word[0]*2-pixmap.x,word[1]*2-pixmap.y,word[2]*2-pixmap.x,word[3]*2-pixmap.y),fill='white')
+            trimmed=trim_choice_width(image)
+            if trimmed is not image:image.close();image=trimmed
+        pending.append(encoder.submit(save_image,image,target))
         if len(pending)>=12:pending.popleft().result()
     words=[]
     if selectable:
@@ -49,7 +62,7 @@ for arg in sys.argv[1:]:
     for pi,p in enumerate(doc):
         blocks=p.get_text('blocks');ids=[b for b in blocks if re.match(r'Question ID: (\w+)',b[4])]
         assert len(ids)<=1,f'Multiple questions on page {pi+1}'
-        markers=[]
+        markers=[];choice_layout=None
         if ids:
             ident=re.search(r'Question ID: (\w+)',ids[0][4])[1]
             question=next(b for b in blocks if b[4].strip()=='Question')
@@ -69,14 +82,16 @@ for arg in sys.argv[1:]:
                 markers.append((b[1]-4,b[3]+3,'between',None))
             elif t=='Rationale':markers.append((b[1]-3,b[3]+3,'explanation',None))
             elif re.match(r'^[ABCD]\.\s',b[4]) and (state=='choice' or state=='choices' or any(m[2]=='choices' for m in markers)):
-                markers.append((b[1]-3,b[1]-3,'choice',t[0]))
+                if choice_layout is None:choice_layout=(p.get_texttrace(),p.get_bboxlog())
+                top=choice_top(b,t[0],choice_layout)
+                markers.append((top,top,'choice',t[0]))
             elif current['id'] in UNLABELED_FOURTH and t.startswith(UNLABELED_FOURTH[current['id']]):
                 markers.append((b[1]-3,b[1]-3,'choice','D'))
                 current['importNote']='Source omits the D label; fourth option identified by order and official Choice D rationale.'
         markers.sort()
         def add(end):
             if state not in ('passage','choice','explanation'):return
-            asset,words=capture(p,start,end,f'{current["id"]}-{pi+1}-{state}{letter or ""}',state=='passage')
+            asset,words=capture(p,start,end,f'{current["id"]}-{pi+1}-{state}{letter or ""}',state=='passage',letter if state=='choice' else None)
             if not asset:return
             if state=='choice':current['choices'][letter].append(asset)
             else:

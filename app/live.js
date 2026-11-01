@@ -16,7 +16,7 @@ const roundClocks=new Map();
 let clockStarting=false;
 const timeExpired=()=>Boolean(room?.roundStartedAt&&Date.now()>=room.roundStartedAt.toMillis()+LIVE_ROUND_MS);
 const settings={subject:'Reading and Writing',category:'All',difficulty:'All',count:10,play:false,name:''};
-const imageList=(paths,label)=>paths.map(src=>`<img class="pdf-img" src="${esc(src)}" alt="${esc(label)}" draggable="false">`).join('');
+const imageList=(paths,label)=>paths.map(src=>`<img class="pdf-img" src="${esc(src)}${label.startsWith('Answer')?'?v=choice-layout-2':''}" alt="${esc(label)}" draggable="false">`).join('');
 const roomRef=()=>doc(db,'rooms',code);
 const responseRef=(round,user=uid)=>doc(db,'rooms',code,'rounds',String(round),'answers',user);
 const isHost=()=>room?.owner===uid;
