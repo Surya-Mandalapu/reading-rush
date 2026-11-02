@@ -1,13 +1,15 @@
 (function(){
  'use strict';
  const queueKey='dosprep-answer-queue';
+ const normalizeEvent=event=>event.mode==='solo'&&/_retry_\d+$/.test(event.id)?{...event,timing:false,seconds:0,correct:false}:event;
  let queue=[],sink=null,sending=false,retryTimer=null,clock=null;
- try{queue=JSON.parse(localStorage.getItem(queueKey)||'[]').filter(e=>Date.now()-e.queuedAt<86400000).slice(-100);}catch{}
+ try{queue=JSON.parse(localStorage.getItem(queueKey)||'[]').filter(e=>Date.now()-e.queuedAt<86400000).slice(-100).map(normalizeEvent);}catch{}
  function save(){try{localStorage.setItem(queueKey,JSON.stringify(queue));}catch{}}
  function flush(){if(clock?.since!==null&&clock?.since!==undefined){clock.ms+=Math.max(0,Date.now()-clock.since);clock.since=null;}}
  function resumeClock(){if(clock&&!clock.paused&&!document.hidden&&clock.since===null)clock.since=Date.now();}
  function enqueue(event){
   if(window.DOSPREP_TEST_MODE)return;
+  event=normalizeEvent(event);
   if(!queue.some(item=>item.id===event.id)){queue.push({...event,version:2,queuedAt:Date.now()});queue=queue.slice(-100);save();}drain();
  }
  async function drain(){

@@ -30,7 +30,8 @@ async function contribute(event){
  if(event.version!==2&&await alreadyRecorded(doc(db,'answerContributions',event.id),user.uid))return;
  for(let attempt=0;attempt<3;attempt++){
   if(await alreadyRecorded(eventRef,user.uid))return;
-  const eligible=Boolean(event.timing&&Number.isInteger(event.seconds)&&event.seconds>=1&&event.seconds<=7200);
+  const retry=event.mode==='solo'&&/_retry_\d+$/.test(event.id);
+  const eligible=Boolean(!retry&&event.timing&&Number.isInteger(event.seconds)&&event.seconds>=1&&event.seconds<=7200);
   // Identity is used only for private replay protection. Never store a person's time or outcome here.
   const data={uid:user.uid,questionId:event.questionId,mode:event.mode,eligible,createdAt:serverTimestamp()};
   const batch=writeBatch(db);batch.set(eventRef,data);batch.set(pointer,{lastEvent:id,updatedAt:serverTimestamp()});
