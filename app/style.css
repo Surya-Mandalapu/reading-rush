@@ -168,3 +168,10 @@ dosprep-question-benchmarks{display:block}
 @media(max-width:620px){.streak-toast{display:none}}
 @media(prefers-reduced-motion:reduce){.streak-toast{display:none}}
 @media(max-width:620px){.benchmark-metrics{grid-template-columns:1fr 1fr}.benchmark-metrics>div:last-child{grid-column:1/-1}.benchmark-metrics strong{font-size:24px}.site-total{font-size:14px}.question-benchmarks h2{font-size:19px}.question-benchmarks .eyebrow{letter-spacing:1px}}
+.choice-box{position:relative;flex:1;min-width:0}
+.choice-box.has-check>.choice{padding-right:116px}
+.choice-check{position:absolute;right:12px;top:50%;transform:translateY(-50%);display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:44px;padding:9px 12px;background:var(--blue);border-color:var(--blue);color:#fff;font-size:14px;font-weight:700;box-shadow:0 2px 5px #36adf129;animation:choice-check-in .16s ease-out}
+.choice-check:hover:not(:disabled){background:#168dce;border-color:#168dce}
+.choice-check .ui-icon{width:17px;height:17px}
+@keyframes choice-check-in{from{opacity:0;translate:6px 0}to{opacity:1;translate:0 0}}
+@media(max-width:620px){.choice-box.has-check>.choice{padding-right:92px}.choice-check{right:8px;gap:3px;padding:9px 8px;font-size:13px}.choice-check .ui-icon{width:15px;height:15px}}
