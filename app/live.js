@@ -3,6 +3,8 @@ import {getAuth,signInAnonymously,connectAuthEmulator,setPersistence,browserLoca
 import {getFirestore,connectFirestoreEmulator,doc,collection,getDoc,getDocs,onSnapshot,runTransaction,writeBatch,serverTimestamp,Timestamp,arrayUnion,arrayRemove} from 'https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js';
 import {escapeHTML as esc,numericValue,isCorrect,shuffled,roomCode,LIVE_ROUND_MS,answerPoints} from './live-utils.js';
 
+import {roundNotes,saveNotes,livePassage,bindLiveHighlights,liveStreak,revealedStreaks} from './live-study-ui.js';
+
 const root=document.getElementById('live-app'),status=document.getElementById('live-status'),bank=window.QUESTIONS;
 const byId=new Map(bank.map(q=>[q.id,q]));
 const firebaseApp=getApps().length?getApp():initializeApp(window.DOSPREP_CONFIG.firebase);
@@ -12,7 +14,11 @@ if(window.DOSPREP_CONFIG.liveEmulator&&['localhost','127.0.0.1'].includes(locati
 }
 let uid,code='',room=null,players=[],responses=[],responsesReady=false,ownResponse=null,selection='',busy=false,connected=navigator.onLine,autoRevealing=false;
 let unsubscribers=[],answerUnsubscribe=null,answerKey='',scores=new Map(),scoreLoading='',errorText='';
-const roundClocks=new Map();
+const roundClocks=new Map(),streaks=new Map(),celebrated=new Set();
+let scoreRound=-1;
+const notesKey=()=>`${code}:${room.createdAt.toMillis()}:${room.round}:${uid}`;
+const selectingPassage=bindLiveHighlights(root);
+let deferredRender;
 let clockStarting=false;
 const timeExpired=()=>Boolean(room?.roundStartedAt&&Date.now()>=room.roundStartedAt.toMillis()+LIVE_ROUND_MS);
 const settings={subject:'Reading and Writing',category:'All',difficulty:'All',count:10,play:false,name:''};
@@ -28,7 +34,7 @@ function report(error){
  notify(text,true);
 }
 function forgetRoom(){
- unsubscribers.forEach(stop=>stop());unsubscribers=[];answerUnsubscribe?.();answerUnsubscribe=null;answerKey='';room=null;code='';players=[];responses=[];ownResponse=null;scores.clear();roundClocks.clear();selection='';scoreLoading='';
+ unsubscribers.forEach(stop=>stop());unsubscribers=[];answerUnsubscribe?.();answerUnsubscribe=null;answerKey='';room=null;code='';players=[];responses=[];ownResponse=null;scores.clear();streaks.clear();celebrated.clear();scoreRound=-1;roundClocks.clear();selection='';scoreLoading='';
  try{localStorage.removeItem('dosprep-live-room');}catch{}history.replaceState(null,'',location.pathname);render();
 }
 function categories(){return [...new Set(bank.filter(q=>q.subject===settings.subject).map(q=>q.domain))];}
@@ -50,20 +56,25 @@ function currentResults(q){
 }
 function leaderboard(){
  const rows=room.memberIds.map(id=>({uid:id,name:players.find(p=>p.uid===id)?.name||'Player',points:scores.get(id)||0})).sort((a,b)=>b.points-a.points||a.name.localeCompare(b.name));
- return `<section class="card live-leaderboard"><h2>Leaderboard</h2><p class="muted">100 base points + up to 100 speed bonus for correct answers. Wrong or unanswered: 0 points.</p><ol>${rows.map(p=>`<li><span>${esc(p.name)}${p.uid===uid?' (you)':''}</span><strong>${p.points} <small>pts</small></strong></li>`).join('')}</ol></section>`;
+ return `<section class="card live-leaderboard"><h2>Leaderboard</h2><p class="muted">100 base points + up to 100 speed bonus for correct answers. Wrong or unanswered: 0 points.</p><ol>${rows.map(p=>`<li style="--row-delay:${Math.min(rows.indexOf(p),10)*40}ms"><span>${esc(p.name)}${p.uid===uid?' (you)':''}</span><div class="live-player-score">${liveStreak(streaks.get(p.uid)||0,scoreRound===room.round&&Boolean(streaks.get(p.uid))&&!celebrated.has(p.uid+':'+room.round))}<strong>${p.points} <small>pts</small></strong></div></li>`).join('')}</ol></section>`;
 }
 function renderQuestion(){
  const q=byId.get(room.questionIds[room.round]);if(!q)return '<main><h1>Question unavailable</h1><p>Refresh to load the latest question library.</p></main>';
  const revealing=room.state==='reveal',participant=room.roundPlayers.includes(uid),answered=hasAnswered(),locked=answered||revealing||!participant||busy||!connected||!room.roundStartedAt||timeExpired();
- const choiceView=q.type==='numeric'?`<div class="card"><label for="live-answer"><b>Your answer</b></label><p class="muted">Enter a number, decimal, or fraction.</p><input id="live-answer" maxlength="80" autocomplete="off" value="${esc(ownResponse?.answer||selection)}" ${locked?'disabled':''} aria-describedby="live-answer-hint"><small id="live-answer-hint">Examples: 12, -0.5, 2/3</small></div>`:`<div class="choices">${'ABCD'.split('').map(k=>`<button data-live-choice="${k}" class="choice ${selection===k||ownResponse?.answer===k?'chosen':''} ${revealing&&q.correct===k?'correct':''}" ${locked?'disabled':''} aria-pressed="${selection===k||ownResponse?.answer===k}" aria-label="Answer ${k}"><span class="letter">${k}</span><div class="choice-content">${imageList(q.choices[k],'Answer choice '+k)}</div></button>`).join('')}</div>`;
- return `<div class="live-game"><div class="live-room live-game-head">${roomHeading()}<div class="live-round-status">${revealing?'':'<span id="live-timer" class="live-timer" role="timer" aria-label="Time remaining"></span>'}<span role="status">${revealing?'Answers revealed':`${room.answeredIds.length} / ${room.roundPlayers.length} answered`}</span>${isHost()?`<div class="toolbar">${revealing?`<button class="primary" data-live-action="next" ${busy||!connected?'disabled':''}>${room.round+1===room.questionIds.length?'Finish quiz':'Next question →'}</button>`:`<button data-live-action="reveal" ${busy||!connected?'disabled':''}>Reveal now</button>`}<button data-live-action="end">End quiz</button></div>`:''}</div></div><section class="study"><p class="muted">${esc(q.skill)} · ${esc(q.difficulty)} · ID ${esc(q.id)}</p><div class="paper">${imageList(q.passage,'Question '+q.id)}</div><div class="live-answer-area">${revealing?(responsesReady?`${q.type!=='numeric'?choiceView:''}${currentResults(q)}`:'<p class="waiting-label" role="status">Loading the reveal…</p>'):participant?`${choiceView}<button class="primary live-submit" data-live-action="answer" ${locked||!validSelection(q)?'disabled':''}>${answered?'Answer submitted ✓':timeExpired()?"Time’s up":busy?'Submitting…':'Lock in answer'}</button><p class="muted live-answer-note" role="status">${answered?'Your answer is private until the reveal. Waiting for the others…':'Your answer locks when you submit. Nobody else can see it before the reveal.'}</p>`:`${q.type!=='numeric'?choiceView:''}<div class="card"><h2>Everyone is thinking.</h2><p class="muted">You are hosting as a spectator. Player choices stay hidden until the reveal.</p></div>`}</div>${revealing?leaderboard():`<details class="card live-roster-card"><summary>Players · ${room.roundPlayers.length}</summary><ul class="live-roster">${roster()}</ul></details>`}${revealing&&!isHost()?'<p class="waiting-label" role="status">Waiting for the host to continue…</p>':''}</section></div>`;
+ const scratch=roundNotes(notesKey());
+ const choiceView=q.type==='numeric'?`<div class="card"><label for="live-answer"><b>Your answer</b></label><p class="muted">Enter a number, decimal, or fraction.</p><input id="live-answer" maxlength="80" autocomplete="off" value="${esc(ownResponse?.answer||selection)}" ${locked?'disabled':''} aria-describedby="live-answer-hint"><small id="live-answer-hint">Examples: 12, -0.5, 2/3</small></div>`:`<div class="choices">${'ABCD'.split('').map(k=>`<div class="choice-row"><button data-live-choice="${k}" class="choice ${!revealing&&scratch.eliminated.has(k)?'eliminated':''} ${selection===k||ownResponse?.answer===k?'chosen':''} ${revealing&&q.correct===k?'correct':''}" ${locked?'disabled':''} aria-pressed="${selection===k||ownResponse?.answer===k}" aria-label="Answer ${k}"><span class="letter">${k}</span><div class="choice-content">${imageList(q.choices[k],'Answer choice '+k)}</div></button>${!revealing&&participant?`<button data-live-eliminate="${k}" class="eliminate" ${locked?'disabled':''} aria-pressed="${scratch.eliminated.has(k)}" aria-label="${scratch.eliminated.has(k)?'Restore':'Cross out'} answer ${k}">${scratch.eliminated.has(k)?'↶':'⊘'}</button>`:''}</div>`).join('')}</div>`;
+ return `<div class="live-game"><div class="live-room live-game-head">${roomHeading()}<div class="live-round-status">${revealing?'':'<span id="live-timer" class="live-timer" role="timer" aria-label="Time remaining"></span>'}${room.memberIds.includes(uid)?liveStreak(streaks.get(uid)||0):''}<span role="status">${revealing?'Answers revealed':`${room.answeredIds.length} / ${room.roundPlayers.length} answered`}</span>${isHost()?`<div class="toolbar">${revealing?`<button class="primary" data-live-action="next" ${busy||!connected?'disabled':''}>${room.round+1===room.questionIds.length?'Finish quiz':'Next question →'}</button>`:`<button data-live-action="reveal" ${busy||!connected?'disabled':''}>Reveal now</button>`}<button data-live-action="end">End quiz</button></div>`:''}</div></div><section class="study"><p class="muted">${esc(q.skill)} · ${esc(q.difficulty)} · ID ${esc(q.id)}</p><div class="paper passage">${livePassage(q,notesKey())}</div><div class="live-answer-area">${revealing?(responsesReady?`${q.type!=='numeric'?choiceView:''}${currentResults(q)}`:'<p class="waiting-label" role="status">Loading the reveal…</p>'):participant?`${choiceView}<button class="primary live-submit" data-live-action="answer" ${locked||!validSelection(q)?'disabled':''}>${answered?'Answer submitted ✓':timeExpired()?"Time’s up":busy?'Submitting…':'Lock in answer'}</button><p class="muted live-answer-note" role="status">${answered?'Your answer is private until the reveal. Waiting for the others…':'Your answer locks when you submit. Nobody else can see it before the reveal.'}</p>`:`${q.type!=='numeric'?choiceView:''}<div class="card"><h2>Everyone is thinking.</h2><p class="muted">You are hosting as a spectator. Player choices stay hidden until the reveal.</p></div>`}</div>${revealing?leaderboard():`<details class="card live-roster-card"><summary>Players · ${room.roundPlayers.length}</summary><ul class="live-roster">${roster()}</ul></details>`}${revealing&&!isHost()?'<p class="waiting-label" role="status">Waiting for the host to continue…</p>':''}</section></div>`;
 }
 function render(){
+ clearTimeout(deferredRender);
+ // Other players' answer/status updates must not interrupt a selection drag.
+ if(room?.state==='question'&&root.querySelector('.document')?.dataset.liveNotes===notesKey()&&selectingPassage()){deferredRender=setTimeout(render,100);return;}
  const active=document.activeElement,restore=active?.id==='live-answer'?{start:active.selectionStart,end:active.selectionEnd}:null;
  if(!room){renderEntry();return;}
  if(room.state==='lobby')root.innerHTML=renderLobby();
  else if(room.state==='finished')root.innerHTML=`<main class="live-room">${roomHeading()}${leaderboard()}<p class="muted">Quiz complete. Thanks for studying together.</p><div class="toolbar">${isHost()?'<button data-live-action="delete">Delete room & answers</button>':''}<button class="primary" data-live-action="back">Back to Live Quiz</button></div></main>`;
  else {root.innerHTML=renderQuestion();readyLiveTiming();}
+ if(scoreRound===room?.round&&['reveal','finished'].includes(room.state))room.memberIds.forEach(id=>celebrated.add(id+':'+room.round));
  updateRoundTimer();
  if(restore){const input=document.getElementById('live-answer');if(input&&!input.disabled){input.focus();input.setSelectionRange(restore.start,restore.end);}}
 }
@@ -73,7 +84,7 @@ function updateRoundTimer(){
  timer.textContent=seconds===null?'Starting…':`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
  timer.classList.toggle('urgent',seconds!==null&&seconds<=10);
  if(seconds===0){
-  root.querySelectorAll('[data-live-choice],#live-answer,[data-live-action="answer"]').forEach(el=>el.disabled=true);
+  root.querySelectorAll('[data-live-choice],[data-live-eliminate],#live-answer,[data-live-action="answer"]').forEach(el=>el.disabled=true);
   const note=root.querySelector('.live-answer-note');if(note)note.textContent='Time’s up. Revealing answers…';
   maybeReveal();
  }
@@ -115,11 +126,11 @@ async function loadScores(){
    Promise.all(indexes.map(i=>roundClocks.has(i)?roundClocks.get(i):getDoc(doc(db,'rooms',activeCode,'rounds',String(i))).then(s=>s.exists()?s.data():null)))
   ]);
   if(code!==activeCode||room?.round!==round||!['reveal','finished'].includes(room.state))return;
-  clocks.forEach((clock,i)=>roundClocks.set(i,clock));scores=new Map();rounds.forEach((snapshot,i)=>snapshot.forEach(d=>{const a=d.data();if(byId.has(ids[i]))scores.set(a.uid,(scores.get(a.uid)||0)+answerPoints(byId.get(ids[i]),a,clocks[i]));}));render();
+  clocks.forEach((clock,i)=>roundClocks.set(i,clock));scores=new Map();streaks.clear();revealedStreaks(room.memberIds,rounds.map(snapshot=>snapshot.docs.map(d=>d.data())),ids,byId).forEach((count,id)=>streaks.set(id,count));scoreRound=round;rounds.forEach((snapshot,i)=>snapshot.forEach(d=>{const a=d.data();if(byId.has(ids[i]))scores.set(a.uid,(scores.get(a.uid)||0)+answerPoints(byId.get(ids[i]),a,clocks[i]));}));render();
  }catch(error){report(error);}
 }
 function watch(codeToWatch){
- unsubscribers.forEach(stop=>stop());answerUnsubscribe?.();unsubscribers=[];answerUnsubscribe=null;answerKey='';scores.clear();roundClocks.clear();scoreLoading='';selection='';code=codeToWatch;
+ unsubscribers.forEach(stop=>stop());answerUnsubscribe?.();unsubscribers=[];answerUnsubscribe=null;answerKey='';scores.clear();streaks.clear();celebrated.clear();scoreRound=-1;roundClocks.clear();scoreLoading='';selection='';code=codeToWatch;
  history.replaceState(null,'',location.pathname+'#'+code);try{localStorage.setItem('dosprep-live-room',code);}catch{}
  unsubscribers.push(onSnapshot(doc(db,'rooms',code),{includeMetadataChanges:true},snapshot=>{
   // Start protected reads only after the room's phase change is server-confirmed.
@@ -216,7 +227,9 @@ root.addEventListener('input',event=>{
 root.addEventListener('keydown',event=>{if(event.target.id==='live-answer'&&event.key==='Enter'){event.preventDefault();act(submitAnswer);}});
 root.addEventListener('click',event=>{
  const button=event.target.closest('button');if(!button||button.disabled)return;
- if(button.dataset.liveChoice&&room?.state==='question'&&room.roundStartedAt&&!timeExpired()&&!hasAnswered()&&room.roundPlayers.includes(uid)){selection=button.dataset.liveChoice;render();return;}
+ if(button.hasAttribute('data-live-clear-highlights')&&room){const key=notesKey();roundNotes(key).marks.clear();saveNotes(key);root.querySelectorAll('.word.highlighted').forEach(word=>word.classList.remove('highlighted'));return;}
+ if(button.dataset.liveEliminate&&room?.state==='question'&&!hasAnswered()&&!busy&&connected&&room.roundStartedAt&&!timeExpired()&&room.roundPlayers.includes(uid)){const key=notesKey(),n=roundNotes(key),k=button.dataset.liveEliminate;if(n.eliminated.has(k))n.eliminated.delete(k);else {n.eliminated.add(k);if(selection===k)selection='';}saveNotes(key);render();return;}
+ if(button.dataset.liveChoice&&room?.state==='question'&&room.roundStartedAt&&!timeExpired()&&!hasAnswered()&&room.roundPlayers.includes(uid)){if(roundNotes(notesKey()).eliminated.has(button.dataset.liveChoice))return;selection=button.dataset.liveChoice;render();return;}
  if(button.dataset.removePlayer){act(()=>removePlayer(button.dataset.removePlayer));return;}
  const action=button.dataset.liveAction;
  if(action==='answer')act(submitAnswer);
