@@ -115,6 +115,7 @@ function renderQuestion(){
  <footer class="study-footer"><span>Question ${session.index+1} / ${session.qs.length}<br><small>ID ${q.id}</small></span><span class="muted">${session.pace} pace · ${session.limit}s target</span>${a||q.type==='numeric'?`<button class="primary" data-action="${a?'next':'submit'}" ${!a&&(!session.selected||disabled)?'disabled':''}>${a?(session.index+1===session.qs.length?'See results':'Next question →'):'Check answer'}</button>`:''}</footer>
  ${session.pausedAt?`<dialog class="pause-dialog" aria-labelledby="pause-title"><span class="pause-emblem">${uiIcon('play')}</span><h2 id="pause-title">Round paused</h2><p>Your timer is stopped. Take a breath.</p><button class="primary" data-action="resume" autofocus>${uiIcon('play')}Resume round</button></dialog>`:''}`;
  tick();
+ if(celebrate&&session.streak>=5&&session.streak%5===0)window.DosPrepCelebrations?.burst(`solo-streak:${session.id}:${session.index}`);
  const toast=root.querySelector('.streak-toast');if(toast)toast.style.setProperty('--streak-toast-top',`${root.querySelector('.study-head').getBoundingClientRect().bottom+6}px`);
  const dialog=root.querySelector('.pause-dialog');if(dialog){dialog.addEventListener('cancel',e=>{e.preventDefault();resume();});dialog.showModal();}
 }
@@ -149,7 +150,7 @@ function checkpointRound(){
 function finish(){
  stopClock();if(!session.answers.length){setup();return;}
  const result={id:session.id,date:new Date().toISOString(),pace:session.pace,subject:session.subject,...(session.module?{module:session.module}:{}),limit:session.limit,best:session.best,answers:session.answers,planned:session.qs.length};
- saved.history=saved.history.filter(h=>h.id!==result.id);saved.history.unshift(result);persist();window.DosPrepAnalytics?.track('practice_complete',{subject:result.subject,pace:result.pace,question_count:result.answers.length});showResults(result);session=null;
+ saved.history=saved.history.filter(h=>h.id!==result.id);saved.history.unshift(result);persist();window.DosPrepAnalytics?.track('practice_complete',{subject:result.subject,pace:result.pace,question_count:result.answers.length});showResults(result);if(result.answers.length===result.planned&&result.answers.filter(a=>a.correct).length/result.planned>.9)window.DosPrepCelebrations?.burst(`solo-complete:${result.id}`);session=null;
 }
 function showResults(h){
  stopClock();currentView='results';review=h;

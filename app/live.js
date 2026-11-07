@@ -126,7 +126,12 @@ async function loadScores(){
    Promise.all(indexes.map(i=>roundClocks.has(i)?roundClocks.get(i):getDoc(doc(db,'rooms',activeCode,'rounds',String(i))).then(s=>s.exists()?s.data():null)))
   ]);
   if(code!==activeCode||room?.round!==round||!['reveal','finished'].includes(room.state))return;
-  clocks.forEach((clock,i)=>roundClocks.set(i,clock));scores=new Map();streaks.clear();revealedStreaks(room.memberIds,rounds.map(snapshot=>snapshot.docs.map(d=>d.data())),ids,byId).forEach((count,id)=>streaks.set(id,count));scoreRound=round;rounds.forEach((snapshot,i)=>snapshot.forEach(d=>{const a=d.data();if(byId.has(ids[i]))scores.set(a.uid,(scores.get(a.uid)||0)+answerPoints(byId.get(ids[i]),a,clocks[i]));}));render();
+  clocks.forEach((clock,i)=>roundClocks.set(i,clock));scores=new Map();streaks.clear();revealedStreaks(room.memberIds,rounds.map(snapshot=>snapshot.docs.map(d=>d.data())),ids,byId).forEach((count,id)=>streaks.set(id,count));scoreRound=round;
+  const ownStreak=streaks.get(uid)||0,celebrationKey=`live:${code}:${room.createdAt.toMillis()}:${uid}`;
+  if(ownStreak>=5&&ownStreak%5===0)window.DosPrepCelebrations?.burst(`${celebrationKey}:streak:${round}`);
+  const ownCorrect=rounds.filter((snapshot,i)=>{const a=snapshot.docs.find(d=>d.data().uid===uid)?.data();return a&&byId.has(ids[i])&&isCorrect(byId.get(ids[i]),a.answer);}).length;
+  if(room.state==='finished'&&round===ids.length-1&&ownCorrect/ids.length>.9)window.DosPrepCelebrations?.burst(`${celebrationKey}:complete`);
+  rounds.forEach((snapshot,i)=>snapshot.forEach(d=>{const a=d.data();if(byId.has(ids[i]))scores.set(a.uid,(scores.get(a.uid)||0)+answerPoints(byId.get(ids[i]),a,clocks[i]));}));render();
  }catch(error){report(error);}
 }
 function watch(codeToWatch){
